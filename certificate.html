@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบขอเลขเกียรติบัตร - โรงเรียนสหราษฎร์รังสฤษดิ์</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+        body { 
+            font-family: 'Sarabun', sans-serif; 
+        }
+        
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+        }
+        
+        .gradient-text {
+            background: linear-gradient(135deg, #065f46 0%, #047857 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .floating-animation {
+            animation: float 6s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .table-row-hover:hover {
+            background: linear-gradient(90deg, rgba(5, 150, 105, 0.05) 0%, rgba(16, 185, 129, 0.05) 100%);
+        }
+        
+        .glass-effect {
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.95);
+        }
+        
+        /* Autocomplete Styles */
+        .autocomplete-items {
+            position: absolute;
+            border: 1px solid #d1d5db;
+            border-top: none;
+            z-index: 99;
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: white;
+            border-radius: 0 0 0.5rem 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        
+        .autocomplete-items div {
+            padding: 10px;
+            cursor: pointer;
+            background-color: white;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .autocomplete-items div:hover {
+            background-color: #f3f4f6;
+        }
+        
+        .autocomplete-active {
+            background-color: #e5e7eb !important;
+        }
+        
+        @media (max-width: 768px) {
+            .mobile-text-sm { font-size: 0.875rem; }
+            .mobile-text-xs { font-size: 0.75rem; }
+            .mobile-px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+            .mobile-py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+            .mobile-hidden { display: none; }
+            .mobile-block { display: block; }
+            .mobile-full { width: 100%; }
+            
+            button, select, input[type="submit"] {
+                min-height: 44px;
+                touch-action: manipulation;
+            }
+            
+            .table-container {
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: thin;
+            }
+            
+            .table-container::-webkit-scrollbar {
+                height: 4px;
+            }
+            
+            .table-container::-webkit-scrollbar-track {
+                background: #f1f1f1;
+                border-radius: 2px;
+            }
+            
+            .table-container::-webkit-scrollbar-thumb {
+                background: #c1c1c1;
+                border-radius: 2px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-green-50 to-emerald-100 min-h-screen">
+    <!-- Header -->
+    <div class="glass-effect shadow-xl border-b border-white/20">
+        <div class="max-w-6xl mx-auto px-4 md:px-6 py-4 md:py-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3 md:space-x-4">
+                    <div class="w-12 h-12 md:w-16 md:h-16 bg-gradient-to-br from-green-600 to-emerald-700 rounded-xl md:rounded-2xl flex items-center justify-center floating-animation shadow-lg">
+                        <span class="text-white font-bold text-lg md:text-2xl">🏆</span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h1 class="text-xl md:text-3xl font-bold gradient-text truncate">ระบบขอเลขเกียรติบัตร</h1>
+                        <p class="text-gray-600 text-sm md:text-lg truncate">โรงเรียนสหราษฎร์รังสฤษดิ์</p>
+                        <div class="flex items-center space-x-2 mt-1">
+                            <div class="w-2 h-2 bg-green-500 rounded-full pulse-animation"></div>
+                            <span class="text-xs md:text-sm text-green-600 font-medium">ระบบพร้อมใช้งาน</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Admin Button -->
+                <a href="admin-certificate.html" class="group relative bg-gradient-to-r from-green-600 via-green-700 to-emerald-800 hover:from-green-700 hover:via-emerald-800 hover:to-green-900 text-white px-4 md:px-6 py-2 md:py-3 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105 flex items-center space-x-2 overflow-hidden">
+                    <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                    <span class="relative text-base md:text-lg animate-pulse">👨‍💼</span>
+                    <span class="relative font-bold text-sm md:text-base tracking-wide">Admin</span>
+                    <svg class="relative w-4 h-4 md:w-5 md:h-5 transform group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                    </svg>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-6xl mx-auto px-4 md:px-6 py-4 md:py-8">
+        <!-- Form Section -->
+        <div class="glass-effect rounded-xl md:rounded-2xl shadow-2xl p-4 md:p-8 mb-6 md:mb-8 card-hover border border-white/20">
+            <div class="flex items-center space-x-3 mb-4 md:mb-6">
+                <div class="w-6 h-6 md:w-8 md:h-8 bg-gradient-to-r from-green-600 to-emerald-700 rounded-lg flex items-center justify-center">
+                    <span class="text-white text-xs md:text-sm">✍️</span>
+                </div>
+                <h2 class="text-lg md:text-2xl font-semibold gradient-text">ขอเลขเกียรติบัตร</h2>
+            </div>
+            
+            <form id="certificateForm" class="space-y-4 md:space-y-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">ชื่อเรื่องของเกียรติบัตร *</label>
+                    <input type="text" id="title" required class="w-full px-3 md:px-4 py-3 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent" placeholder="กรอกชื่อเรื่องของเกียรติบัตร">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">ผู้ลงนาม *</label>
+                    <div class="relative" id="signerAutocomplete">
+                        <input type="text" id="signer" required autocomplete="off" class="w-full px-3 md:px-4 py-3 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent" placeholder="พิมพ์ชื่อผู้ลงนาม">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">จำนวนเลขที่ต้องการ (จำนวนเกียรติบัตร) *</label>
+                    <input type="number" id="quantity" required min="1" max="1000" class="w-full px-3 md:px-4 py-3 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent" placeholder="กรอกจำนวนเลขที่ต้องการ (เช่น 10)">
+                    <p class="text-xs text-gray-500 mt-1">ระบบจะสร้างเลขเกียรติบัตรให้ตามจำนวนที่ระบุ</p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">ผู้ขอเลข *</label>
+                    <div class="relative" id="requestorAutocomplete">
+                        <input type="text" id="requestor" required autocomplete="off" class="w-full px-3 md:px-4 py-3 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent" placeholder="พิมพ์ชื่อผู้ขอเลข">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">หมายเหตุอื่นๆ</label>
+                    <textarea id="notes" rows="3" class="w-full px-3 md:px-4 py-3 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent" placeholder="กรอกหมายเหตุ (ถ้ามี)"></textarea>
+                </div>
+
+                <button type="submit" class="w-full bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white font-semibold py-4 px-6 rounded-xl transition duration-300 shadow-lg hover:shadow-xl transform hover:scale-[1.02] flex items-center justify-center space-x-2 min-h-[48px]">
+                    <span>🏆</span>
+                    <span class="text-sm md:text-base">ขอเลขเกียรติบัตร</span>
+                </button>
+            </form>
+        </div>
+
+        <!-- History Section -->
+        <div class="glass-effect rounded-xl md:rounded-2xl shadow-2xl p-4 md:p-8 card-hover border border-white/20">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4 md:mb-6 space-y-3 md:space-y-0">
+                <div class="flex items-center space-x-3 md:space-x-4">
+                    <div class="w-6 h-6 md:w-8 md:h-8 bg-gradient-to-r from-green-600 to-emerald-700 rounded-lg flex items-center justify-center">
+                        <span class="text-white text-xs md:text-sm">📊</span>
+                    </div>
+                    <h2 class="text-lg md:text-2xl font-semibold gradient-text">ประวัติการขอเลขเกียรติบัตร</h2>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <label class="text-sm font-medium text-gray-700">ปี:</label>
+                    <select id="yearFilter" class="px-3 md:px-4 py-2 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent bg-white">
+                        <!-- Years will be populated by JavaScript -->
+                    </select>
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto rounded-xl border border-gray-200 table-container">
+                <table class="w-full border-collapse bg-white/50 min-w-[700px]">
+                    <thead>
+                        <tr class="bg-gradient-to-r from-green-50 to-emerald-50">
+                            <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">เลขเกียรติบัตร</th>
+                            <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">ชื่อเรื่อง</th>
+                            <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">ผู้ลงนาม</th>
+                            <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">ผู้ขอเลข</th>
+                            <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">วันที่</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTable">
+                        <tr>
+                            <td colspan="5" class="border-b border-gray-100 px-3 md:px-6 py-6 md:py-8 text-center text-gray-500">
+                                <div class="flex items-center justify-center space-x-2">
+                                    <div class="w-3 h-3 md:w-4 md:h-4 bg-green-600 rounded-full animate-bounce"></div>
+                                    <div class="w-3 h-3 md:w-4 md:h-4 bg-green-700 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                                    <div class="w-3 h-3 md:w-4 md:h-4 bg-emerald-700 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                                    <span class="ml-3 text-sm">กำลังโหลดข้อมูล...</span>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-gradient-to-r from-green-700 to-emerald-800 text-white mt-8 md:mt-16">
+        <div class="max-w-6xl mx-auto px-4 md:px-6 py-8 md:py-12">
+            <div class="grid md:grid-cols-2 gap-6 md:gap-8">
+                <div>
+                    <div class="flex items-center space-x-3 mb-4">
+                        <div class="w-8 h-8 md:w-10 md:h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                            <span class="text-lg md:text-xl">🏫</span>
+                        </div>
+                        <h3 class="text-lg md:text-xl font-semibold">ระบบขอเลขเกียรติบัตร</h3>
+                    </div>
+                    <p class="text-green-100 leading-relaxed text-sm md:text-base">
+                        โรงเรียนสหราษฎร์รังสฤษดิ์<br>
+                        สำนักงานเขตพื้นที่การศึกษามัธยมศึกษานครพนม<br>
+                        อำเภอศรีสงคราม จังหวัดนครพนม
+                    </p>
+                </div>
+                <div>
+                    <h4 class="text-base md:text-lg font-semibold mb-4 flex items-center">
+                        <span class="mr-2">📞</span>
+                        ติดต่อเจ้าหน้าที่
+                    </h4>
+                    <div class="space-y-3">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-6 h-6 md:w-8 md:h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                                <span class="text-xs md:text-sm">📱</span>
+                            </div>
+                            <span class="text-green-100 text-sm md:text-base">0912345678</span>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <div class="w-6 h-6 md:w-8 md:h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                                <span class="text-xs md:text-sm">💻</span>
+                            </div>
+                            <span class="text-green-100 text-sm md:text-base">ระบบจัดการเอกสารออนไลน์</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="border-t border-green-600 mt-6 md:mt-8 pt-6 md:pt-8 text-center">
+                <p class="text-green-200 text-xs md:text-sm">
+                    © 2024 โรงเรียนสหราษฎร์รังสฤษดิ์ - ระบบขอเลขเกียรติบัตร
+                </p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Certificate Number Popup -->
+    <div id="certificatePopup" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-xl p-4 md:p-8 max-w-md w-full shadow-2xl">
+            <div class="text-center mb-4 md:mb-6">
+                <div class="w-12 h-12 md:w-16 md:h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3 md:mb-4">
+                    <span class="text-green-600 text-xl md:text-2xl">✅</span>
+                </div>
+                <h3 class="text-lg md:text-xl font-semibold text-gray-800">เลขเกียรติบัตรของคุณ</h3>
+            </div>
+            
+            <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-3 md:p-4 mb-4 md:mb-6 border-2 border-green-200">
+                <div class="text-center">
+                    <div class="text-lg md:text-2xl font-bold text-green-700 mb-2" id="certificateNumber"></div>
+                    <div class="text-xs md:text-sm text-gray-600">เลขเกียรติบัตร</div>
+                </div>
+            </div>
+            
+            <div class="space-y-2 md:space-y-3 text-xs md:text-sm" id="certificateDetails"></div>
+            
+            <button id="closePopup" class="w-full bg-green-700 hover:bg-green-800 text-white font-semibold py-3 px-6 rounded-lg transition duration-200 mt-4 md:mt-6 min-h-[44px]">
+                ปิด
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Staff Names Data
+        const staffNames = [
+            "นายเทอดไทย หอมสมบัติ",
+            "นายณัฐพงศ์ บุณยารมย์",
+            "นางสาวบุญยวีร์ ปาข้างฮุง",
+            "นายวีระศักดิ์ สำราญเนตร",
+            "นายอภิรักขภูมิ ยันตะบุศย์",
+            "นายประจวบ อรรคสังข์",
+            "นางสาวสกลรัตน์ พันธุ์เวียง",
+            "นางสาวนันทนา โพธิ์สุ",
+            "นางสาวฤทัยวรรณ วงศ์ณะรัตน์",
+            "นางสาวชไมพร จิตรจักร",
+            "นางสาวอรชุมา ไชยราช",
+            "นายวรินทร์ แก้วสุรีย์",
+            "นายวุฒิชัย วงวันดี",
+            "นางสาววชิราพร อนุวรรณ",
+            "นายนราชิต หัตถมา",
+            "นางสาวสุดารัตน์ แสนเขื่อน",
+            "นางสาวอรนิษา อินติยะ",
+            "นายนที  ทัศนิตร์",
+            "นายนิรุต ราญมีชัย",
+            "นางสาวอุไรพร ถาคำ",
+            "นางปาจรีย์ เจริญวงศ์",
+            "นางสาวณัฏฐณิชา สุธรรม",
+            "นายพิพัฒพงษ์ วิเศษ",
+            "นางสาวพรรณทิพย์ ปากดี",
+            "นายภัคพล ยะภักดี",
+            "นางสาวรมณ บูรณ์เจริญ",
+            "นายสมเกียรติ เมตุลา",
+            "นางสาวคณัญญา พิกุลทอง",
+            "นางสาวสมปรารถนา บุญเพ็ชร์",
+            "นายสหัสวรรษ บุญศรี",
+            "นายณัฐพล คูณหลาย",
+            "นางภาวิณี สุพลแสง",
+            "นายชาลี สุพลแสง",
+            "นางสาวกัญญาพัชร คำชนะ",
+            "นางสาวลัดดาพร แสงทอง",
+            "นางสาวชลันดา ประยูรเสาวภาคย์",
+            "นางสาวรัชพร ว่องไว",
+            "นางวิลัยลักษณ์ จันทะขิน",
+            "ว่าที่ ร.ต.ธนวัตร ดีหลาย",
+            "นางสาวบุณยานุช วิชัยโย",
+            "นายสัมฤทธิ์  จิกจักร",
+            "นายศุภลักษณ์ ผาบคีรี",
+            "นางอุไร อุทัยแสน",
+            "นางสาวชัยณรี แสนเลิง",
+            "นางสาวพัทมัย วะยะลุน",
+            "นางสาววิภารัตน์  สุธรรม",
+            "นางจันทนาทิพส์ เวฬุวนารักษ์",
+            "นางสาวเอื้ออารี เอกพันธ์",
+            "นางสาวกนิษฐา ศรีถาพร",
+            "นางสาวสุภาวิตา ใสส่อง",
+            "นายสุทัศน์ ยามี",
+            "นายสุทัศน์ อุดม",
+            "นายศิริศักดิ์ ปิลอง",
+            "นายนัฏฐพล ปากดี",
+            "นายสุชาติ สระแก้ว",
+            "นางสาววไลภรณ์ ขรรค์ศร",
+            "นายสมศักดิ์ วดีศิริศักดิ์",
+            "นายทศพล อุสาพรหม",
+            "นายพงษ์ศักดิ์ ลานนท์",
+            "นางสาวสมรถ ราชิวงศ์",
+            "นางสาวทัษพิชา ทองประสาน",
+            "นางสาวสุทธิดา พิมพ์แก้ว",
+            "นายกานต์นิธิ ปะกิระคะ",
+            "นางสาวพัชราภรณ์ คนยืน",
+            "นายวิชญ์วิสิฐ กฤษฎิ์พิรเมศ",
+            "นางสาวอัมพร รักดี",
+            "นางสาวภควดี วรรณวงศ์",
+            "นางขวัญนภา อรรคสังข์",
+            "นางทิติภา แสนมะฮุง",
+            "นายยุทธการ แก้วอินทร์",
+            "นางสาวปราณีต พรรณวงศ์",
+            "นายประหยัด ไชยกา",
+            "นางสาวธัญดา  โชติวุฒิมนตรี",
+            "นายพุท ภูหาด",
+            "นางสาวกชณิชา ออทะขันธ์",
+            "นางสาวอารยา วรวงศ์",
+            "นางสาวขัตติยา คัณทักษ์",
+            "นางสาวไพลิน ทันบุญ",
+            "นางสาวพิชญ์ชาณิกา คณานันท์",
+            "นางสาวชญานี บุญมาศ",
+            "นางสาวนิภาภัทร แก้วมะ",
+            "Mr.Augustine Edongneck Endum",
+            "Mrs.Jenneth Villamater Manuel",
+            "นางสาวญาณินท์  กวดวงศ์ษา",
+            "นายอำนาจ ศรีภักดิ์",
+            "นายฉัตรชฎา เพชรวิชัย",
+            "นายอัษฎา ปิตะพรหม",
+            "นายศุภกร นาคทับทิม",
+            "นางสาวภิญญดา  สุขวัน",
+            "นางสาวสาวิตรี อุทำกา",
+            "นายมาโนช แสนศรี",
+            "นางสาวมณฑิกาณ์ จันทคาต",
+            "นายณัฐสิทธิ์ สุพร",
+            "นางสาวชุลีพร ต้นสวรรค์",
+            "นายจักรพล ตรีศรี",
+            "นายอาชา เกื้อหนองขุ่น",
+            "นายฤทธิพร ศรีวารมย์",
+            "นายนทีธร วงษ์นารี",
+            "นางสาวมินตรา สารยศ",
+            "นายรัตนพันธ์ เจริญวงศ์",
+            "นางสาวอัตถจริยา มุงคุณ",
+            "นางสาวมณีรัตน์ วดีศิริศักดิ์",
+            "นางสาวพิมพรรณ์ ราชมณี",
+            "นางฐิตานันท์ ชมภูยันต์",
+            "นายสวาสดิ์ วงศ์พุทธา",
+            "นายธนพล กองทรัพย์",
+            "นายสุพรรณ นะดม",
+            "นายพิชัย  สุขภูวงค์",
+            "นางสาวสุภาพร วังวิสัย",
+            "นางศุภนิดา สาระโพธิ์",
+            "นางยุพิน ลีพรม",
+            "นายชรินทร  กิตติธรรม",
+            "นายวัชรกร นิที"
+        ];
+
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCKv1S84RJyK8AzZwd-UwkmO4XxahcwRos",
+            authDomain: "e-document-ed317.firebaseapp.com",
+            projectId: "e-document-ed317",
+            storageBucket: "e-document-ed317.firebasestorage.app",
+            messagingSenderId: "920521182684",
+            appId: "1:920521182684:web:4f54681f2367a44e5ed319",
+            measurementId: "G-M3X6NEF5XY"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        let certificates = [];
+        let currentYear = new Date().getFullYear();
+
+        // DOM Elements
+        const certificateForm = document.getElementById('certificateForm');
+        const certificatePopup = document.getElementById('certificatePopup');
+        const historyTable = document.getElementById('historyTable');
+        const yearFilter = document.getElementById('yearFilter');
+
+        // Populate year filter
+        async function populateYearFilter() {
+            try {
+                const snapshot = await db.collection('certificate').get();
+                const years = new Set();
+                
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (data.year) {
+                        years.add(data.year);
+                    }
+                });
+                
+                years.add(currentYear);
+                const yearArray = Array.from(years).sort((a, b) => b - a);
+                
+                yearFilter.innerHTML = yearArray.map(year => {
+                    const thaiYear = year + 543;
+                    return `<option value="${year}" ${year === currentYear ? 'selected' : ''}>พ.ศ. ${thaiYear}</option>`;
+                }).join('');
+                
+            } catch (error) {
+                console.error('Error populating year filter:', error);
+                const thaiYear = currentYear + 543;
+                yearFilter.innerHTML = `<option value="${currentYear}">พ.ศ. ${thaiYear}</option>`;
+            }
+        }
+
+        // Year filter change event
+        yearFilter.addEventListener('change', function() {
+            loadCertificates(parseInt(this.value));
+        });
+
+        // Autocomplete function
+        function autocomplete(inp, arr) {
+            let currentFocus;
+            
+            inp.addEventListener("input", function(e) {
+                let a, b, i, val = this.value;
+                closeAllLists();
+                if (!val) { return false; }
+                currentFocus = -1;
+                
+                a = document.createElement("DIV");
+                a.setAttribute("id", this.id + "autocomplete-list");
+                a.setAttribute("class", "autocomplete-items");
+                this.parentNode.appendChild(a);
+                
+                let count = 0;
+                for (i = 0; i < arr.length; i++) {
+                    if (arr[i].toUpperCase().includes(val.toUpperCase())) {
+                        b = document.createElement("DIV");
+                        b.innerHTML = arr[i];
+                        b.innerHTML += "<input type='hidden' value='" + arr[i] + "'>";
+                        b.addEventListener("click", function(e) {
+                            inp.value = this.getElementsByTagName("input")[0].value;
+                            closeAllLists();
+                        });
+                        a.appendChild(b);
+                        count++;
+                        if (count >= 10) break;
+                    }
+                }
+            });
+            
+            inp.addEventListener("keydown", function(e) {
+                let x = document.getElementById(this.id + "autocomplete-list");
+                if (x) x = x.getElementsByTagName("div");
+                if (e.keyCode == 40) {
+                    currentFocus++;
+                    addActive(x);
+                } else if (e.keyCode == 38) {
+                    currentFocus--;
+                    addActive(x);
+                } else if (e.keyCode == 13) {
+                    e.preventDefault();
+                    if (currentFocus > -1) {
+                        if (x) x[currentFocus].click();
+                    }
+                }
+            });
+            
+            function addActive(x) {
+                if (!x) return false;
+                removeActive(x);
+                if (currentFocus >= x.length) currentFocus = 0;
+                if (currentFocus < 0) currentFocus = (x.length - 1);
+                x[currentFocus].classList.add("autocomplete-active");
+            }
+            
+            function removeActive(x) {
+                for (let i = 0; i < x.length; i++) {
+                    x[i].classList.remove("autocomplete-active");
+                }
+            }
+            
+            function closeAllLists(elmnt) {
+                let x = document.getElementsByClassName("autocomplete-items");
+                for (let i = 0; i < x.length; i++) {
+                    if (elmnt != x[i] && elmnt != inp) {
+                        x[i].parentNode.removeChild(x[i]);
+                    }
+                }
+            }
+            
+            document.addEventListener("click", function (e) {
+                closeAllLists(e.target);
+            });
+        }
+
+        // Initialize autocomplete
+        autocomplete(document.getElementById("signer"), staffNames);
+        autocomplete(document.getElementById("requestor"), staffNames);
+
+        // Form submission
+        certificateForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const title = document.getElementById('title').value;
+            const signer = document.getElementById('signer').value;
+            const quantity = parseInt(document.getElementById('quantity').value);
+            const requestor = document.getElementById('requestor').value;
+            const notes = document.getElementById('notes').value;
+
+            if (quantity < 1 || quantity > 1000) {
+                alert('กรุณาระบุจำนวนเลขระหว่าง 1-1000');
+                return;
+            }
+
+            try {
+                const currentYear = new Date().getFullYear();
+                const thaiYear = currentYear + 543;
+                const counterDocId = `certificateNumber_${currentYear}`;
+                
+                const counterDoc = await db.collection('counters').doc(counterDocId).get();
+                let startNumber = 1;
+                
+                if (counterDoc.exists) {
+                    startNumber = counterDoc.data().current + 1;
+                }
+
+                const endNumber = startNumber + quantity - 1;
+                const certificateNumber = quantity === 1 
+                    ? `${startNumber}/${thaiYear}`
+                    : `${startNumber}-${endNumber}/${thaiYear}`;
+                
+                const timestamp = new Date();
+
+                // Save to Firestore
+                await db.collection('certificate').add({
+                    certificateNumber,
+                    title,
+                    signer,
+                    quantity,
+                    requestor,
+                    notes,
+                    timestamp,
+                    startNumber,
+                    endNumber,
+                    year: currentYear
+                });
+
+                // Update counter
+                await db.collection('counters').doc(counterDocId).set({
+                    current: endNumber,
+                    year: currentYear
+                });
+
+                showCertificatePopup(certificateNumber, { 
+                    title, 
+                    signer, 
+                    quantity, 
+                    requestor, 
+                    notes, 
+                    timestamp 
+                });
+                
+                certificateForm.reset();
+                
+                await populateYearFilter();
+                loadCertificates(currentYear);
+
+            } catch (error) {
+                alert('เกิดข้อผิดพลาด: ' + error.message);
+            }
+        });
+
+        // Show certificate popup
+        function showCertificatePopup(certNum, details) {
+            document.getElementById('certificateNumber').textContent = certNum;
+            document.getElementById('certificateDetails').innerHTML = `
+                <div class="bg-gray-50 rounded-lg p-3 space-y-2">
+                    <div><strong class="text-gray-700">ชื่อเรื่อง:</strong> <span class="text-gray-600">${details.title}</span></div>
+                    <div><strong class="text-gray-700">ผู้ลงนาม:</strong> <span class="text-gray-600">${details.signer}</span></div>
+                    <div><strong class="text-gray-700">จำนวนเลข:</strong> <span class="text-green-600 font-semibold">${details.quantity} เลข</span></div>
+                    <div><strong class="text-gray-700">ผู้ขอเลข:</strong> <span class="text-gray-600">${details.requestor}</span></div>
+                    ${details.notes ? `<div><strong class="text-gray-700">หมายเหตุ:</strong> <span class="text-gray-600">${details.notes}</span></div>` : ''}
+                    <div><strong class="text-gray-700">วันที่:</strong> <span class="text-gray-600">${details.timestamp.toLocaleDateString('th-TH')}</span></div>
+                </div>
+            `;
+            certificatePopup.classList.remove('hidden');
+            certificatePopup.classList.add('flex');
+        }
+
+        // Close popup
+        document.getElementById('closePopup').addEventListener('click', function() {
+            certificatePopup.classList.add('hidden');
+            certificatePopup.classList.remove('flex');
+        });
+
+        // Load certificates
+        async function loadCertificates(year = currentYear) {
+            try {
+                const snapshot = await db.collection('certificate')
+                    .orderBy('timestamp', 'desc')
+                    .get();
+                
+                certificates = [];
+                
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (data.year === year) {
+                        certificates.push({ id: doc.id, ...data });
+                    }
+                });
+
+                displayCertificates();
+            } catch (error) {
+                console.error('Error loading certificates:', error);
+                historyTable.innerHTML = `<tr><td colspan="5" class="border-b border-gray-100 px-6 py-8 text-center text-red-500">ไม่สามารถโหลดข้อมูลได้: ${error.message}</td></tr>`;
+            }
+        }
+
+        // Display certificates
+        function displayCertificates() {
+            if (certificates.length === 0) {
+                const selectedYear = parseInt(yearFilter.value);
+                const thaiYear = selectedYear + 543;
+                historyTable.innerHTML = `<tr><td colspan="5" class="border-b border-gray-100 px-6 py-8 text-center text-gray-500">ยังไม่มีข้อมูลสำหรับปี พ.ศ. ${thaiYear}</td></tr>`;
+                return;
+            }
+
+            historyTable.innerHTML = certificates.map(cert => `
+                <tr class="table-row-hover transition-all duration-200">
+                    <td class="border-b border-gray-100 px-3 md:px-6 py-3 md:py-4 font-medium text-green-700 text-xs md:text-sm">${cert.certificateNumber}</td>
+                    <td class="border-b border-gray-100 px-3 md:px-6 py-3 md:py-4 text-xs md:text-sm">${cert.title}</td>
+                    <td class="border-b border-gray-100 px-3 md:px-6 py-3 md:py-4 text-xs md:text-sm">${cert.signer}</td>
+                    <td class="border-b border-gray-100 px-3 md:px-6 py-3 md:py-4 text-xs md:text-sm">${cert.requestor}</td>
+                    <td class="border-b border-gray-100 px-3 md:px-6 py-3 md:py-4 text-gray-500 text-xs md:text-sm">${cert.timestamp.toDate().toLocaleDateString('th-TH')}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Initialize page
+        async function initializePage() {
+            try {
+                await populateYearFilter();
+                await loadCertificates(currentYear);
+            } catch (error) {
+                console.error('Error initializing page:', error);
+                historyTable.innerHTML = `<tr><td colspan="5" class="border-b border-gray-100 px-6 py-8 text-center text-red-500">เกิดข้อผิดพลาดในการโหลดข้อมูล กรุณารีเฟรชหน้าเว็บ</td></tr>`;
+            }
+        }
+        
+        initializePage();
+    </script>
+</body>
+</html>
