@@ -6,9 +6,12 @@
     <title>ระบบ Admin - จัดการเลขหนังสือ</title>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- Firebase SDK -->
+    <!-- Firebase SDK v9 (Firestore) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    
+    <!-- SheetJS for Excel export -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     
     <style>
         * {
@@ -96,7 +99,7 @@
             font-size: 14px;
         }
 
-        .form-group input {
+        .form-group input, .form-group select, .form-group textarea {
             width: 100%;
             padding: 14px 18px;
             border: 2px solid var(--border);
@@ -106,7 +109,12 @@
             font-family: 'Sarabun', sans-serif;
         }
 
-        .form-group input:focus {
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
             outline: none;
             border-color: var(--primary);
             box-shadow: 0 0 0 4px rgba(30, 64, 175, 0.1);
@@ -255,10 +263,10 @@
             font-size: 18px;
         }
 
-        .sidebar-menu a[data-system="outgoing"]::before { content: "📤"; }
-        .sidebar-menu a[data-system="circular"]::before { content: "🔄"; }
-        .sidebar-menu a[data-system="memo"]::before { content: "📝"; }
-        .sidebar-menu a[data-system="order"]::before { content: "📋"; }
+        .sidebar-menu a[data-system="documents"]::before { content: "📤"; }
+        .sidebar-menu a[data-system="circulars"]::before { content: "🔄"; }
+        .sidebar-menu a[data-system="memos"]::before { content: "📝"; }
+        .sidebar-menu a[data-system="command"]::before { content: "📋"; }
         .sidebar-menu a[data-system="certificate"]::before { content: "🏆"; }
 
         .main-content {
@@ -314,9 +322,6 @@
         }
 
         .stat-card.primary .stat-icon { background: rgba(30, 64, 175, 0.1); }
-        .stat-card.success .stat-icon { background: rgba(16, 185, 129, 0.1); }
-        .stat-card.warning .stat-icon { background: rgba(245, 158, 11, 0.1); }
-        .stat-card.danger .stat-icon { background: rgba(239, 68, 68, 0.1); }
 
         .stat-value {
             font-size: 32px;
@@ -377,6 +382,11 @@
             color: white;
         }
 
+        .btn-success:hover {
+            background: #059669;
+            transform: translateY(-1px);
+        }
+
         .btn-danger {
             background: var(--danger);
             color: white;
@@ -418,29 +428,6 @@
 
         tbody tr:hover {
             background: #f9fafb;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .badge-success {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .badge-warning {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .badge-danger {
-            background: #fee2e2;
-            color: #991b1b;
         }
 
         .action-buttons {
@@ -638,10 +625,10 @@
         <div class="admin-body">
             <aside class="sidebar">
                 <ul class="sidebar-menu">
-                    <li><a href="#" class="active" data-system="outgoing" onclick="switchSystem('outgoing', event)"><span>ระบบหนังสือออก</span></a></li>
-                    <li><a href="#" data-system="circular" onclick="switchSystem('circular', event)"><span>ระบบหนังสือเวียน</span></a></li>
-                    <li><a href="#" data-system="memo" onclick="switchSystem('memo', event)"><span>ระบบบันทึกข้อความ</span></a></li>
-                    <li><a href="#" data-system="order" onclick="switchSystem('order', event)"><span>ระบบคำสั่ง</span></a></li>
+                    <li><a href="#" class="active" data-system="documents" onclick="switchSystem('documents', event)"><span>ระบบหนังสือออก</span></a></li>
+                    <li><a href="#" data-system="circulars" onclick="switchSystem('circulars', event)"><span>ระบบหนังสือเวียน</span></a></li>
+                    <li><a href="#" data-system="memos" onclick="switchSystem('memos', event)"><span>ระบบบันทึกข้อความ</span></a></li>
+                    <li><a href="#" data-system="command" onclick="switchSystem('command', event)"><span>ระบบคำสั่ง</span></a></li>
                     <li><a href="#" data-system="certificate" onclick="switchSystem('certificate', event)"><span>ระบบเกียรติบัตร</span></a></li>
                 </ul>
             </aside>
@@ -667,6 +654,7 @@
                             <div class="search-box">
                                 <input type="text" id="searchInput" placeholder="ค้นหา..." onkeyup="searchData()">
                             </div>
+                            <button class="btn btn-success" onclick="downloadExcel()">📥 ดาวน์โหลด Excel</button>
                             <button class="btn btn-primary" onclick="openAddModal()">+ เพิ่มรายการใหม่</button>
                         </div>
                     </div>
@@ -699,15 +687,23 @@
                     </div>
                     <div class="form-group">
                         <label>เรื่อง</label>
-                        <input type="text" id="subject" required>
+                        <input type="text" id="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label>จาก</label>
+                        <input type="text" id="from">
+                    </div>
+                    <div class="form-group">
+                        <label>ถึง</label>
+                        <input type="text" id="to">
                     </div>
                     <div class="form-group">
                         <label>ผู้ขอ</label>
                         <input type="text" id="requester" required>
                     </div>
                     <div class="form-group">
-                        <label>หน่วยงาน</label>
-                        <input type="text" id="department" required>
+                        <label>หมายเหตุ</label>
+                        <textarea id="notes"></textarea>
                     </div>
                 </form>
             </div>
@@ -721,59 +717,60 @@
     <script>
         // Firebase Configuration
         const firebaseConfig = {
-            apiKey: "AIzaSyDChv7G7p8eS8pXGJ0Z5Z5Z5Z5Z5Z5Z5Z5",
-            authDomain: "document-system-db.firebaseapp.com",
-            databaseURL: "https://document-system-db-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "document-system-db",
-            storageBucket: "document-system-db.appspot.com",
-            messagingSenderId: "123456789012",
-            appId: "1:123456789012:web:abcdef123456"
+            apiKey: "AIzaSyCKv1S84RJyK8AzZwd-UwkmO4XxahcwRos",
+            authDomain: "e-document-ed317.firebaseapp.com",
+            projectId: "e-document-ed317",
+            storageBucket: "e-document-ed317.firebasestorage.app",
+            messagingSenderId: "920521182684",
+            appId: "1:920521182684:web:4f54681f2367a44e5ed319",
+            measurementId: "G-M3X6NEF5XY"
         };
 
         // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
+        const db = firebase.firestore();
 
         // Authentication
         const ADMIN_USERNAME = 'admin';
         const ADMIN_PASSWORD = 'saharaj_12345';
 
         // Data Storage
-        let currentSystem = 'outgoing';
+        let currentSystem = 'documents';
         let editingId = null;
         let currentData = [];
+        let unsubscribe = null; // For Firestore listener
 
-        // System Configuration with Firebase paths
+        // System Configuration with Firestore collection names
         const systemConfig = {
-            outgoing: {
+            documents: {
                 title: 'ระบบหนังสือออก',
                 desc: 'จัดการและควบคุมเลขหนังสือออก',
                 icon: '📤',
-                path: 'outgoing_documents'
+                collection: 'documents'
             },
-            circular: {
+            circulars: {
                 title: 'ระบบหนังสือเวียน',
                 desc: 'จัดการและควบคุมเลขหนังสือเวียน',
                 icon: '🔄',
-                path: 'circular_documents'
+                collection: 'document_v'
             },
-            memo: {
+            memos: {
                 title: 'ระบบบันทึกข้อความ',
                 desc: 'จัดการและควบคุมเลขบันทึกข้อความ',
                 icon: '📝',
-                path: 'memo_documents'
+                collection: 'memos'
             },
-            order: {
+            command: {
                 title: 'ระบบคำสั่ง',
                 desc: 'จัดการและควบคุมเลขคำสั่ง',
                 icon: '📋',
-                path: 'order_documents'
+                collection: 'command'
             },
             certificate: {
                 title: 'ระบบเกียรติบัตร',
                 desc: 'จัดการและควบคุมเลขเกียรติบัตร',
                 icon: '🏆',
-                path: 'certificate_documents'
+                collection: 'certificate'
             }
         };
 
@@ -798,6 +795,11 @@
         // Logout
         function logout() {
             if (confirm('คุณต้องการออกจากระบบหรือไม่?')) {
+                // Unsubscribe from Firestore listener
+                if (unsubscribe) {
+                    unsubscribe();
+                }
+                
                 document.getElementById('adminPanel').style.display = 'none';
                 document.getElementById('loginPage').style.display = 'flex';
                 document.getElementById('username').value = '';
@@ -805,25 +807,9 @@
             }
         }
 
-        // Switch System
-        function switchSystem(system, event) {
-            event.preventDefault();
-            currentSystem = system;
-            
-            // Update active menu
-            document.querySelectorAll('.sidebar-menu a').forEach(a => a.classList.remove('active'));
-            event.target.closest('a').classList.add('active');
-            
-            // Update header
-            document.getElementById('systemTitle').textContent = systemConfig[system].title;
-            document.getElementById('systemDesc').textContent = systemConfig[system].desc;
-            
-            loadData();
-        }
-
-        // Load Data from Firebase
+        // Load Data from Firestore
         function loadData() {
-            const dbPath = systemConfig[currentSystem].path;
+            const collectionName = systemConfig[currentSystem].collection;
             
             // Show loading
             document.getElementById('tableContainer').innerHTML = `
@@ -833,33 +819,35 @@
                 </div>
             `;
 
-            database.ref(dbPath).on('value', (snapshot) => {
-                currentData = [];
-                const data = snapshot.val();
-                
-                if (data) {
-                    Object.keys(data).forEach(key => {
+            // Unsubscribe from previous listener
+            if (unsubscribe) {
+                unsubscribe();
+            }
+
+            // Real-time listener
+            unsubscribe = db.collection(collectionName)
+                .orderBy('timestamp', 'desc')
+                .onSnapshot((snapshot) => {
+                    currentData = [];
+                    
+                    snapshot.forEach((doc) => {
                         currentData.push({
-                            id: key,
-                            ...data[key]
+                            id: doc.id,
+                            ...doc.data()
                         });
                     });
-                }
-                
-                // Sort by date descending
-                currentData.sort((a, b) => new Date(b.date || b.timestamp) - new Date(a.date || a.timestamp));
-                
-                updateStats(currentData);
-                renderTable(currentData);
-            }, (error) => {
-                console.error('Error loading data:', error);
-                document.getElementById('tableContainer').innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">❌</div>
-                        <p>เกิดข้อผิดพลาดในการโหลดข้อมูล</p>
-                    </div>
-                `;
-            });
+                    
+                    updateStats(currentData);
+                    renderTable(currentData);
+                }, (error) => {
+                    console.error('Error loading data:', error);
+                    document.getElementById('tableContainer').innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">❌</div>
+                            <p>เกิดข้อผิดพลาดในการโหลดข้อมูล: ${error.message}</p>
+                        </div>
+                    `;
+                });
         }
 
         // Update Statistics
@@ -889,7 +877,6 @@
                             <th>วันที่</th>
                             <th>เรื่อง</th>
                             <th>ผู้ขอ</th>
-                            <th>หน่วยงาน</th>
                             <th>จัดการ</th>
                         </tr>
                     </thead>
@@ -898,19 +885,23 @@
 
             data.forEach(item => {
                 // Get document number from different possible fields
-                const docNumber = item.documentNumber || item.docNumber || item.number || '-';
+                const docNumber = item.documentNumber || item.memoNumber || item.commandNumber || item.certificateNumber || item.number || '-';
                 
-                // Get date from different possible fields
-                const dateValue = item.date || item.timestamp || item.createdAt || '';
+                // Get date
+                let dateValue = '-';
+                if (item.timestamp) {
+                    if (item.timestamp.toDate) {
+                        dateValue = item.timestamp.toDate();
+                    } else {
+                        dateValue = new Date(item.timestamp);
+                    }
+                }
                 
-                // Get subject from different possible fields
-                const subject = item.subject || item.title || item.topic || '-';
+                // Get subject/title
+                const subject = item.title || item.subject || '-';
                 
-                // Get requester from different possible fields
-                const requester = item.requester || item.requestedBy || item.name || '-';
-                
-                // Get department from different possible fields
-                const department = item.department || item.division || item.unit || '-';
+                // Get requester
+                const requester = item.requester || item.requestor || '-';
                 
                 html += `
                     <tr>
@@ -918,7 +909,6 @@
                         <td>${formatDate(dateValue)}</td>
                         <td>${subject}</td>
                         <td>${requester}</td>
-                        <td>${department}</td>
                         <td>
                             <div class="action-buttons">
                                 <button class="btn btn-primary btn-small" onclick="editData('${item.id}')">แก้ไข</button>
@@ -934,11 +924,17 @@
         }
 
         // Format Date
-        function formatDate(dateString) {
-            if (!dateString) return '-';
+        function formatDate(dateValue) {
+            if (!dateValue || dateValue === '-') return '-';
             
-            const date = new Date(dateString);
-            if (isNaN(date.getTime())) return dateString; // Return original if invalid
+            let date;
+            if (dateValue instanceof Date) {
+                date = dateValue;
+            } else {
+                date = new Date(dateValue);
+            }
+            
+            if (isNaN(date.getTime())) return '-';
             
             const thaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 
                               'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
@@ -949,15 +945,13 @@
         function searchData() {
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
             const filteredData = currentData.filter(item => {
-                const docNumber = (item.documentNumber || item.docNumber || item.number || '').toString().toLowerCase();
-                const subject = (item.subject || item.title || item.topic || '').toString().toLowerCase();
-                const requester = (item.requester || item.requestedBy || item.name || '').toString().toLowerCase();
-                const department = (item.department || item.division || item.unit || '').toString().toLowerCase();
+                const docNumber = (item.documentNumber || item.memoNumber || item.commandNumber || item.certificateNumber || item.number || '').toString().toLowerCase();
+                const subject = (item.subject || item.title || '').toString().toLowerCase();
+                const requester = (item.requester || item.requestor || '').toString().toLowerCase();
                 
                 return docNumber.includes(searchTerm) ||
                        subject.includes(searchTerm) ||
-                       requester.includes(searchTerm) ||
-                       department.includes(searchTerm);
+                       requester.includes(searchTerm);
             });
             
             updateStats(filteredData);
@@ -984,67 +978,86 @@
             editingId = id;
             document.getElementById('modalTitle').textContent = 'แก้ไขรายการ';
             
-            // Set values with fallbacks for different field names
-            document.getElementById('docNumber').value = item.documentNumber || item.docNumber || item.number || '';
-            document.getElementById('docDate').value = item.date || item.timestamp || item.createdAt || '';
-            document.getElementById('subject').value = item.subject || item.title || item.topic || '';
-            document.getElementById('requester').value = item.requester || item.requestedBy || item.name || '';
-            document.getElementById('department').value = item.department || item.division || item.unit || '';
+            // Set values
+            document.getElementById('docNumber').value = item.documentNumber || item.memoNumber || item.commandNumber || item.certificateNumber || item.number || '';
+            
+            // Set date
+            if (item.timestamp) {
+                let dateValue;
+                if (item.timestamp.toDate) {
+                    dateValue = item.timestamp.toDate();
+                } else {
+                    dateValue = new Date(item.timestamp);
+                }
+                const formattedDate = dateValue.toISOString().split('T')[0];
+                document.getElementById('docDate').value = formattedDate;
+            }
+            
+            document.getElementById('title').value = item.title || item.subject || '';
+            document.getElementById('from').value = item.from || '';
+            document.getElementById('to').value = item.to || '';
+            document.getElementById('requester').value = item.requester || item.requestor || '';
+            document.getElementById('notes').value = item.notes || '';
             
             document.getElementById('dataModal').style.display = 'flex';
         }
 
-        // Save Data to Firebase
-        function saveData() {
-            const formData = {
-                documentNumber: document.getElementById('docNumber').value,
-                docNumber: document.getElementById('docNumber').value, // Keep both for compatibility
-                date: document.getElementById('docDate').value,
-                timestamp: document.getElementById('docDate').value,
-                subject: document.getElementById('subject').value,
-                requester: document.getElementById('requester').value,
-                department: document.getElementById('department').value,
-                updatedAt: new Date().toISOString()
-            };
+        // Save Data to Firestore
+        async function saveData() {
+            try {
+                const collectionName = systemConfig[currentSystem].collection;
+                
+                const formData = {
+                    title: document.getElementById('title').value,
+                    from: document.getElementById('from').value,
+                    to: document.getElementById('to').value,
+                    requester: document.getElementById('requester').value,
+                    notes: document.getElementById('notes').value,
+                    timestamp: firebase.firestore.Timestamp.fromDate(new Date(document.getElementById('docDate').value))
+                };
 
-            const dbPath = systemConfig[currentSystem].path;
+                // Add document number field based on system type
+                const docNumberValue = document.getElementById('docNumber').value;
+                if (currentSystem === 'documents') {
+                    formData.documentNumber = docNumberValue;
+                } else if (currentSystem === 'circulars') {
+                    formData.documentNumber = docNumberValue;
+                } else if (currentSystem === 'memos') {
+                    formData.memoNumber = docNumberValue;
+                } else if (currentSystem === 'command') {
+                    formData.commandNumber = docNumberValue;
+                } else if (currentSystem === 'certificate') {
+                    formData.certificateNumber = docNumberValue;
+                }
 
-            if (editingId) {
-                // Update existing record
-                database.ref(`${dbPath}/${editingId}`).update(formData)
-                    .then(() => {
-                        alert('บันทึกข้อมูลสำเร็จ');
-                        closeModal();
-                    })
-                    .catch((error) => {
-                        alert('เกิดข้อผิดพลาด: ' + error.message);
-                    });
-            } else {
-                // Add new record
-                formData.createdAt = new Date().toISOString();
-                database.ref(dbPath).push(formData)
-                    .then(() => {
-                        alert('เพิ่มข้อมูลสำเร็จ');
-                        closeModal();
-                    })
-                    .catch((error) => {
-                        alert('เกิดข้อผิดพลาด: ' + error.message);
-                    });
+                if (editingId) {
+                    // Update existing record
+                    await db.collection(collectionName).doc(editingId).update(formData);
+                    alert('บันทึกข้อมูลสำเร็จ');
+                } else {
+                    // Add new record
+                    await db.collection(collectionName).add(formData);
+                    alert('เพิ่มข้อมูลสำเร็จ');
+                }
+                
+                closeModal();
+            } catch (error) {
+                console.error('Error saving data:', error);
+                alert('เกิดข้อผิดพลาด: ' + error.message);
             }
         }
 
-        // Delete Data from Firebase
-        function deleteData(id) {
+        // Delete Data from Firestore
+        async function deleteData(id) {
             if (confirm('คุณต้องการลบรายการนี้หรือไม่?\n\nการดำเนินการนี้ไม่สามารถย้อนกลับได้')) {
-                const dbPath = systemConfig[currentSystem].path;
-                
-                database.ref(`${dbPath}/${id}`).remove()
-                    .then(() => {
-                        alert('ลบข้อมูลสำเร็จ');
-                    })
-                    .catch((error) => {
-                        alert('เกิดข้อผิดพลาดในการลบข้อมูล: ' + error.message);
-                    });
+                try {
+                    const collectionName = systemConfig[currentSystem].collection;
+                    await db.collection(collectionName).doc(id).delete();
+                    alert('ลบข้อมูลสำเร็จ');
+                } catch (error) {
+                    console.error('Error deleting data:', error);
+                    alert('เกิดข้อผิดพลาดในการลบข้อมูล: ' + error.message);
+                }
             }
         }
 
@@ -1059,9 +1072,10 @@
         function switchSystem(system, event) {
             event.preventDefault();
             
-            // Turn off previous listener
-            const oldPath = systemConfig[currentSystem].path;
-            database.ref(oldPath).off();
+            // Unsubscribe from previous listener
+            if (unsubscribe) {
+                unsubscribe();
+            }
             
             currentSystem = system;
             
@@ -1079,12 +1093,6 @@
             loadData();
         }
 
-        // Initialize
-        window.onload = function() {
-            // Check if already logged in (you can add session management here)
-            console.log('Firebase Admin Panel Ready');
-        };
-
         // Close modal on outside click
         window.onclick = function(event) {
             const modal = document.getElementById('dataModal');
@@ -1092,6 +1100,103 @@
                 closeModal();
             }
         }
+
+        // Download Excel Function
+        function downloadExcel() {
+            if (currentData.length === 0) {
+                alert('ไม่มีข้อมูลให้ดาวน์โหลด');
+                return;
+            }
+
+            // Prepare data for Excel
+            const excelData = currentData.map((item, index) => {
+                // Get document number
+                const docNumber = item.documentNumber || item.memoNumber || item.commandNumber || item.certificateNumber || item.number || '-';
+                
+                // Get date
+                let dateValue = '-';
+                if (item.timestamp) {
+                    if (item.timestamp.toDate) {
+                        dateValue = formatDateForExcel(item.timestamp.toDate());
+                    } else {
+                        dateValue = formatDateForExcel(new Date(item.timestamp));
+                    }
+                }
+                
+                // Get other fields
+                const title = item.title || item.subject || '-';
+                const from = item.from || '-';
+                const to = item.to || '-';
+                const requester = item.requester || item.requestor || '-';
+                const notes = item.notes || '-';
+                const year = item.year || '-';
+
+                return {
+                    'ลำดับ': index + 1,
+                    'หมายเลขเอกสาร': docNumber,
+                    'วันที่': dateValue,
+                    'เรื่อง': title,
+                    'จาก': from,
+                    'ถึง': to,
+                    'ผู้ขอ': requester,
+                    'หมายเหตุ': notes,
+                    'ปี': year
+                };
+            });
+
+            // Create workbook and worksheet
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(excelData);
+
+            // Set column widths
+            const colWidths = [
+                { wch: 8 },  // ลำดับ
+                { wch: 20 }, // หมายเลขเอกสาร
+                { wch: 15 }, // วันที่
+                { wch: 40 }, // เรื่อง
+                { wch: 30 }, // จาก
+                { wch: 30 }, // ถึง
+                { wch: 20 }, // ผู้ขอ
+                { wch: 30 }, // หมายเหตุ
+                { wch: 8 }   // ปี
+            ];
+            ws['!cols'] = colWidths;
+
+            // Add worksheet to workbook
+            const systemName = systemConfig[currentSystem].title;
+            XLSX.utils.book_append_sheet(wb, ws, systemName);
+
+            // Generate filename with current date
+            const now = new Date();
+            const dateStr = `${now.getDate()}-${now.getMonth() + 1}-${now.getFullYear() + 543}`;
+            const filename = `${systemName}_${dateStr}.xlsx`;
+
+            // Download file
+            XLSX.writeFile(wb, filename);
+        }
+
+        // Format date for Excel
+        function formatDateForExcel(dateValue) {
+            if (!dateValue) return '-';
+            
+            let date;
+            if (dateValue instanceof Date) {
+                date = dateValue;
+            } else {
+                date = new Date(dateValue);
+            }
+            
+            if (isNaN(date.getTime())) return '-';
+            
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear() + 543;
+            
+            return `${day}/${month}/${year}`;
+        }
+
+        // Initialize
+        console.log('Firebase Admin Panel Ready - Connected to Firestore');
     </script>
 </body>
 </html>
