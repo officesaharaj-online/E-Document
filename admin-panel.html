@@ -675,32 +675,43 @@
             </div>
             <div class="modal-body">
                 <form id="dataForm">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>หมายเลขเอกสาร</label>
-                            <input type="text" id="docNumber" required>
-                        </div>
-                        <div class="form-group">
-                            <label>วันที่</label>
-                            <input type="date" id="docDate" required>
-                        </div>
-                    </div>
+                    <!-- Common Fields -->
                     <div class="form-group">
-                        <label>เรื่อง</label>
+                        <label>เรื่อง <span style="color: red;">*</span></label>
                         <input type="text" id="title" required>
                     </div>
-                    <div class="form-group">
-                        <label>จาก</label>
-                        <input type="text" id="from">
+
+                    <!-- Fields for systems with from/to -->
+                    <div id="fromToFields" style="display: none;">
+                        <div class="form-group">
+                            <label>จาก</label>
+                            <input type="text" id="from">
+                        </div>
+                        <div class="form-group">
+                            <label>ถึง</label>
+                            <input type="text" id="to">
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>ถึง</label>
-                        <input type="text" id="to">
+
+                    <!-- Fields for certificate system -->
+                    <div id="certificateFields" style="display: none;">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>ผู้ลงนาม <span style="color: red;">*</span></label>
+                                <input type="text" id="signer" required>
+                            </div>
+                            <div class="form-group">
+                                <label>จำนวน <span style="color: red;">*</span></label>
+                                <input type="number" id="quantity" min="1" required>
+                            </div>
+                        </div>
                     </div>
+
                     <div class="form-group">
-                        <label>ผู้ขอ</label>
+                        <label>ผู้ขอ <span style="color: red;">*</span></label>
                         <input type="text" id="requester" required>
                     </div>
+                    
                     <div class="form-group">
                         <label>หมายเหตุ</label>
                         <textarea id="notes"></textarea>
@@ -869,22 +880,48 @@
                 return;
             }
 
+            // Define table headers based on system
+            let headers = '';
+            if (currentSystem === 'certificate') {
+                headers = `
+                    <th>หมายเลขเอกสาร</th>
+                    <th>เรื่อง</th>
+                    <th>ผู้ลงนาม</th>
+                    <th>จำนวน</th>
+                    <th>ผู้ขอ</th>
+                    <th>จัดการ</th>
+                `;
+            } else if (currentSystem === 'command') {
+                headers = `
+                    <th>หมายเลขเอกสาร</th>
+                    <th>วันที่</th>
+                    <th>เรื่อง</th>
+                    <th>ผู้ขอ</th>
+                    <th>จัดการ</th>
+                `;
+            } else {
+                // documents, circulars, memos
+                headers = `
+                    <th>หมายเลขเอกสาร</th>
+                    <th>วันที่</th>
+                    <th>เรื่อง</th>
+                    <th>จาก</th>
+                    <th>ถึง</th>
+                    <th>ผู้ขอ</th>
+                    <th>จัดการ</th>
+                `;
+            }
+
             let html = `
                 <table>
                     <thead>
-                        <tr>
-                            <th>หมายเลขเอกสาร</th>
-                            <th>วันที่</th>
-                            <th>เรื่อง</th>
-                            <th>ผู้ขอ</th>
-                            <th>จัดการ</th>
-                        </tr>
+                        <tr>${headers}</tr>
                     </thead>
                     <tbody>
             `;
 
             data.forEach(item => {
-                // Get document number from different possible fields
+                // Get document number
                 const docNumber = item.documentNumber || item.memoNumber || item.commandNumber || item.certificateNumber || item.number || '-';
                 
                 // Get date
@@ -897,18 +934,45 @@
                     }
                 }
                 
-                // Get subject/title
-                const subject = item.title || item.subject || '-';
-                
-                // Get requester
+                // Get other fields
+                const title = item.title || item.subject || '-';
+                const from = item.from || '-';
+                const to = item.to || '-';
                 const requester = item.requester || item.requestor || '-';
+                const signer = item.signer || '-';
+                const quantity = item.quantity || '-';
+                
+                // Build row based on system
+                let row = '';
+                if (currentSystem === 'certificate') {
+                    row = `
+                        <td><strong>${docNumber}</strong></td>
+                        <td>${title}</td>
+                        <td>${signer}</td>
+                        <td>${quantity}</td>
+                        <td>${requester}</td>
+                    `;
+                } else if (currentSystem === 'command') {
+                    row = `
+                        <td><strong>${docNumber}</strong></td>
+                        <td>${formatDate(dateValue)}</td>
+                        <td>${title}</td>
+                        <td>${requester}</td>
+                    `;
+                } else {
+                    row = `
+                        <td><strong>${docNumber}</strong></td>
+                        <td>${formatDate(dateValue)}</td>
+                        <td>${title}</td>
+                        <td>${from}</td>
+                        <td>${to}</td>
+                        <td>${requester}</td>
+                    `;
+                }
                 
                 html += `
                     <tr>
-                        <td><strong>${docNumber}</strong></td>
-                        <td>${formatDate(dateValue)}</td>
-                        <td>${subject}</td>
-                        <td>${requester}</td>
+                        ${row}
                         <td>
                             <div class="action-buttons">
                                 <button class="btn btn-primary btn-small" onclick="editData('${item.id}')">แก้ไข</button>
@@ -963,8 +1027,35 @@
             editingId = null;
             document.getElementById('modalTitle').textContent = 'เพิ่มรายการใหม่';
             document.getElementById('dataForm').reset();
-            document.getElementById('docDate').valueAsDate = new Date();
+            
+            // Show/hide fields based on system
+            showFormFieldsForSystem();
+            
             document.getElementById('dataModal').style.display = 'flex';
+        }
+
+        // Show/hide form fields based on current system
+        function showFormFieldsForSystem() {
+            const fromToFields = document.getElementById('fromToFields');
+            const certificateFields = document.getElementById('certificateFields');
+            
+            // Hide all optional fields first
+            fromToFields.style.display = 'none';
+            certificateFields.style.display = 'none';
+            
+            // Remove required attribute from all optional fields
+            document.getElementById('signer').removeAttribute('required');
+            document.getElementById('quantity').removeAttribute('required');
+            
+            // Show fields based on system
+            if (currentSystem === 'certificate') {
+                certificateFields.style.display = 'block';
+                document.getElementById('signer').setAttribute('required', 'required');
+                document.getElementById('quantity').setAttribute('required', 'required');
+            } else if (currentSystem === 'documents' || currentSystem === 'circulars' || currentSystem === 'memos') {
+                fromToFields.style.display = 'block';
+            }
+            // command system has only common fields (title, requester, notes)
         }
 
         // Edit Data
@@ -978,26 +1069,22 @@
             editingId = id;
             document.getElementById('modalTitle').textContent = 'แก้ไขรายการ';
             
-            // Set values
-            document.getElementById('docNumber').value = item.documentNumber || item.memoNumber || item.commandNumber || item.certificateNumber || item.number || '';
+            // Show/hide fields based on system
+            showFormFieldsForSystem();
             
-            // Set date
-            if (item.timestamp) {
-                let dateValue;
-                if (item.timestamp.toDate) {
-                    dateValue = item.timestamp.toDate();
-                } else {
-                    dateValue = new Date(item.timestamp);
-                }
-                const formattedDate = dateValue.toISOString().split('T')[0];
-                document.getElementById('docDate').value = formattedDate;
-            }
-            
+            // Set common values
             document.getElementById('title').value = item.title || item.subject || '';
-            document.getElementById('from').value = item.from || '';
-            document.getElementById('to').value = item.to || '';
             document.getElementById('requester').value = item.requester || item.requestor || '';
             document.getElementById('notes').value = item.notes || '';
+            
+            // Set system-specific values
+            if (currentSystem === 'certificate') {
+                document.getElementById('signer').value = item.signer || '';
+                document.getElementById('quantity').value = item.quantity || '';
+            } else if (currentSystem === 'documents' || currentSystem === 'circulars' || currentSystem === 'memos') {
+                document.getElementById('from').value = item.from || '';
+                document.getElementById('to').value = item.to || '';
+            }
             
             document.getElementById('dataModal').style.display = 'flex';
         }
@@ -1007,27 +1094,23 @@
             try {
                 const collectionName = systemConfig[currentSystem].collection;
                 
+                // Common fields
                 const formData = {
                     title: document.getElementById('title').value,
-                    from: document.getElementById('from').value,
-                    to: document.getElementById('to').value,
-                    requester: document.getElementById('requester').value,
-                    notes: document.getElementById('notes').value,
-                    timestamp: firebase.firestore.Timestamp.fromDate(new Date(document.getElementById('docDate').value))
+                    requester: document.getElementById('requester').value || '',
+                    requestor: document.getElementById('requester').value || '', // Keep both spellings
+                    notes: document.getElementById('notes').value || '',
+                    timestamp: firebase.firestore.Timestamp.fromDate(new Date()),
+                    year: new Date().getFullYear()
                 };
 
-                // Add document number field based on system type
-                const docNumberValue = document.getElementById('docNumber').value;
-                if (currentSystem === 'documents') {
-                    formData.documentNumber = docNumberValue;
-                } else if (currentSystem === 'circulars') {
-                    formData.documentNumber = docNumberValue;
-                } else if (currentSystem === 'memos') {
-                    formData.memoNumber = docNumberValue;
-                } else if (currentSystem === 'command') {
-                    formData.commandNumber = docNumberValue;
-                } else if (currentSystem === 'certificate') {
-                    formData.certificateNumber = docNumberValue;
+                // Add system-specific fields
+                if (currentSystem === 'certificate') {
+                    formData.signer = document.getElementById('signer').value;
+                    formData.quantity = parseInt(document.getElementById('quantity').value);
+                } else if (currentSystem === 'documents' || currentSystem === 'circulars' || currentSystem === 'memos') {
+                    formData.from = document.getElementById('from').value || '';
+                    formData.to = document.getElementById('to').value || '';
                 }
 
                 if (editingId) {
@@ -1035,9 +1118,9 @@
                     await db.collection(collectionName).doc(editingId).update(formData);
                     alert('บันทึกข้อมูลสำเร็จ');
                 } else {
-                    // Add new record
+                    // Add new record - Note: Document number will be generated by user form
                     await db.collection(collectionName).add(formData);
-                    alert('เพิ่มข้อมูลสำเร็จ');
+                    alert('เพิ่มข้อมูลสำเร็จ\n\nหมายเหตุ: หมายเลขเอกสารจะถูกสร้างโดยระบบหน้าบ้าน');
                 }
                 
                 closeModal();
@@ -1108,7 +1191,7 @@
                 return;
             }
 
-            // Prepare data for Excel
+            // Prepare data for Excel based on system
             const excelData = currentData.map((item, index) => {
                 // Get document number
                 const docNumber = item.documentNumber || item.memoNumber || item.commandNumber || item.certificateNumber || item.number || '-';
@@ -1123,43 +1206,85 @@
                     }
                 }
                 
-                // Get other fields
+                // Common fields
                 const title = item.title || item.subject || '-';
-                const from = item.from || '-';
-                const to = item.to || '-';
                 const requester = item.requester || item.requestor || '-';
                 const notes = item.notes || '-';
                 const year = item.year || '-';
 
-                return {
+                // Build row based on system
+                let row = {
                     'ลำดับ': index + 1,
                     'หมายเลขเอกสาร': docNumber,
-                    'วันที่': dateValue,
-                    'เรื่อง': title,
-                    'จาก': from,
-                    'ถึง': to,
-                    'ผู้ขอ': requester,
-                    'หมายเหตุ': notes,
-                    'ปี': year
                 };
+
+                if (currentSystem === 'certificate') {
+                    row['เรื่อง'] = title;
+                    row['ผู้ลงนาม'] = item.signer || '-';
+                    row['จำนวน'] = item.quantity || '-';
+                    row['ผู้ขอ'] = requester;
+                    row['หมายเหตุ'] = notes;
+                    row['ปี'] = year;
+                } else if (currentSystem === 'command') {
+                    row['วันที่'] = dateValue;
+                    row['เรื่อง'] = title;
+                    row['ผู้ขอ'] = requester;
+                    row['หมายเหตุ'] = notes;
+                    row['ปี'] = year;
+                } else {
+                    // documents, circulars, memos
+                    row['วันที่'] = dateValue;
+                    row['เรื่อง'] = title;
+                    row['จาก'] = item.from || '-';
+                    row['ถึง'] = item.to || '-';
+                    row['ผู้ขอ'] = requester;
+                    row['หมายเหตุ'] = notes;
+                    row['ปี'] = year;
+                }
+
+                return row;
             });
 
             // Create workbook and worksheet
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.json_to_sheet(excelData);
 
-            // Set column widths
-            const colWidths = [
-                { wch: 8 },  // ลำดับ
-                { wch: 20 }, // หมายเลขเอกสาร
-                { wch: 15 }, // วันที่
-                { wch: 40 }, // เรื่อง
-                { wch: 30 }, // จาก
-                { wch: 30 }, // ถึง
-                { wch: 20 }, // ผู้ขอ
-                { wch: 30 }, // หมายเหตุ
-                { wch: 8 }   // ปี
-            ];
+            // Set column widths based on system
+            let colWidths;
+            if (currentSystem === 'certificate') {
+                colWidths = [
+                    { wch: 8 },  // ลำดับ
+                    { wch: 20 }, // หมายเลขเอกสาร
+                    { wch: 40 }, // เรื่อง
+                    { wch: 20 }, // ผู้ลงนาม
+                    { wch: 10 }, // จำนวน
+                    { wch: 20 }, // ผู้ขอ
+                    { wch: 30 }, // หมายเหตุ
+                    { wch: 8 }   // ปี
+                ];
+            } else if (currentSystem === 'command') {
+                colWidths = [
+                    { wch: 8 },  // ลำดับ
+                    { wch: 20 }, // หมายเลขเอกสาร
+                    { wch: 15 }, // วันที่
+                    { wch: 40 }, // เรื่อง
+                    { wch: 20 }, // ผู้ขอ
+                    { wch: 30 }, // หมายเหตุ
+                    { wch: 8 }   // ปี
+                ];
+            } else {
+                colWidths = [
+                    { wch: 8 },  // ลำดับ
+                    { wch: 20 }, // หมายเลขเอกสาร
+                    { wch: 15 }, // วันที่
+                    { wch: 40 }, // เรื่อง
+                    { wch: 30 }, // จาก
+                    { wch: 30 }, // ถึง
+                    { wch: 20 }, // ผู้ขอ
+                    { wch: 30 }, // หมายเหตุ
+                    { wch: 8 }   // ปี
+                ];
+            }
             ws['!cols'] = colWidths;
 
             // Add worksheet to workbook
