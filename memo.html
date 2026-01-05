@@ -640,35 +640,44 @@
             try {
                 const currentYear = new Date().getFullYear();
                 const counterDocId = `memoNumber_${currentYear}`;
+                const counterRef = db.collection('counters').doc(counterDocId);
                 
-                const counterDoc = await db.collection('counters').doc(counterDocId).get();
-                let nextNumber = 1;
-                
-                if (counterDoc.exists) {
-                    nextNumber = counterDoc.data().current + 1;
-                }
-
-                const memoNumber = `ศธ 04305.037/${nextNumber}`;
-                const timestamp = new Date();
-
-                await db.collection('memos').add({
-                    memoNumber,
-                    title,
-                    from,
-                    to,
-                    requestor,
-                    notes,
-                    timestamp,
-                    number: nextNumber,
-                    year: currentYear
+                // Use transaction to ensure unique number even with concurrent requests
+                const result = await db.runTransaction(async (transaction) => {
+                    const counterDoc = await transaction.get(counterRef);
+                    
+                    let nextNumber = 1;
+                    if (counterDoc.exists) {
+                        nextNumber = counterDoc.data().current + 1;
+                    }
+                    
+                    const memoNumber = `ศธ 04305.037/${nextNumber}`;
+                    const timestamp = new Date();
+                    
+                    // Create memo document
+                    const memoRef = db.collection('memos').doc();
+                    transaction.set(memoRef, {
+                        memoNumber,
+                        title,
+                        from,
+                        to,
+                        requestor,
+                        notes,
+                        timestamp,
+                        number: nextNumber,
+                        year: currentYear
+                    });
+                    
+                    // Update counter
+                    transaction.set(counterRef, {
+                        current: nextNumber,
+                        year: currentYear
+                    });
+                    
+                    return { memoNumber, timestamp };
                 });
 
-                await db.collection('counters').doc(counterDocId).set({
-                    current: nextNumber,
-                    year: currentYear
-                });
-
-                showMemoPopup(memoNumber, { title, from, to, requestor, notes, timestamp });
+                showMemoPopup(result.memoNumber, { title, from, to, requestor, notes, timestamp: result.timestamp });
                 
                 memoForm.reset();
                 fromOtherContainer.classList.add('hidden');
@@ -769,5 +778,3 @@
     </script>
 </body>
 </html>
-
-
