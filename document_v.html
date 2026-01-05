@@ -321,6 +321,7 @@
         let availableYears = [];
         let currentSelectedYear = null;
         let requesterNames = new Set();
+        let isSubmitting = false; // Flag to prevent duplicate submissions
 
         // DOM Elements
         const fromSelect = document.getElementById('fromSelect');
@@ -392,26 +393,57 @@
         documentForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            const title = document.getElementById('title').value;
-            const from = fromSelect.value === 'other' ? fromOther.value : fromSelect.value;
-            const to = toSelect.value === 'other' ? toOther.value : toSelect.value;
-            const requester = document.getElementById('requester').value;
-            const notes = document.getElementById('notes').value;
-
+            // Prevent duplicate submission
+            if (isSubmitting) {
+                return;
+            }
+            
+            // Get submit button
+            const submitButton = this.querySelector('button[type="submit"]');
+            const originalButtonHTML = submitButton.innerHTML;
+            
             try {
+                // Set submitting state
+                isSubmitting = true;
+                submitButton.disabled = true;
+                submitButton.classList.add('opacity-70', 'cursor-not-allowed');
+                submitButton.innerHTML = `
+                    <span>⏳</span>
+                    <span class="text-sm md:text-base">กำลังดำเนินการ...</span>
+                `;
+                
+                const title = document.getElementById('title').value;
+                const from = fromSelect.value === 'other' ? fromOther.value : fromSelect.value;
+                const to = toSelect.value === 'other' ? toOther.value : toSelect.value;
+                const requester = document.getElementById('requester').value;
+                const notes = document.getElementById('notes').value;
+
                 const currentYear = new Date().getFullYear();
                 const counterDocId = `documentNumber_${currentYear}`;
-                
-                const counterDoc = await db.collection(COUNTERS_COLLECTION).doc(counterDocId).get();
-                let nextNumber = 1;
-                
-                if (counterDoc.exists) {
-                    nextNumber = counterDoc.data().current + 1;
-                }
-
-                const documentNumber = `ศธ 04305.037/ว${nextNumber}`;
+                const counterRef = db.collection(COUNTERS_COLLECTION).doc(counterDocId);
                 const timestamp = new Date();
 
+                // Use Firebase Transaction to prevent duplicate numbers
+                const nextNumber = await db.runTransaction(async (transaction) => {
+                    const counterDoc = await transaction.get(counterRef);
+                    let newNumber = 1;
+                    
+                    if (counterDoc.exists) {
+                        newNumber = counterDoc.data().current + 1;
+                    }
+                    
+                    // Update counter in transaction
+                    transaction.set(counterRef, {
+                        current: newNumber,
+                        year: currentYear
+                    });
+                    
+                    return newNumber;
+                });
+
+                const documentNumber = `ศธ 04305.037/ว${nextNumber}`;
+
+                // Save document after getting the number
                 await db.collection(COLLECTION_NAME).add({
                     documentNumber,
                     title,
@@ -421,11 +453,6 @@
                     notes,
                     timestamp,
                     number: nextNumber,
-                    year: currentYear
-                });
-
-                await db.collection(COUNTERS_COLLECTION).doc(counterDocId).set({
-                    current: nextNumber,
                     year: currentYear
                 });
 
@@ -444,7 +471,14 @@
                 await loadAvailableYears();
 
             } catch (error) {
+                console.error('Error:', error);
                 alert('เกิดข้อผิดพลาด: ' + error.message);
+            } finally {
+                // Reset submitting state
+                isSubmitting = false;
+                submitButton.disabled = false;
+                submitButton.classList.remove('opacity-70', 'cursor-not-allowed');
+                submitButton.innerHTML = originalButtonHTML;
             }
         });
 
@@ -627,5 +661,3 @@
     </script>
 </body>
 </html>
-
-
