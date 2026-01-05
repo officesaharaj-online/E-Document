@@ -321,6 +321,7 @@
     <script>
         // Staff Names Data
         const staffNames = [
+            "ผู้อำนวยการโรงเรียน",
             "นายเทอดไทย หอมสมบัติ",
             "นายณัฐพงศ์ บุณยารมย์",
             "นางสาวบุญยวีร์ ปาข้างฮุง",
@@ -574,9 +575,18 @@
         autocomplete(document.getElementById("signer"), staffNames);
         autocomplete(document.getElementById("requestor"), staffNames);
 
-        // Form submission
+        // Form submission with duplicate prevention
+        let isSubmitting = false;
+        const submitButton = certificateForm.querySelector('button[type="submit"]');
+        const originalButtonHTML = submitButton.innerHTML;
+
         certificateForm.addEventListener('submit', async function(e) {
             e.preventDefault();
+            
+            // Prevent duplicate submissions
+            if (isSubmitting) {
+                return;
+            }
             
             const title = document.getElementById('title').value;
             const signer = document.getElementById('signer').value;
@@ -590,45 +600,57 @@
             }
 
             try {
+                // Set submitting state
+                isSubmitting = true;
+                submitButton.disabled = true;
+                submitButton.innerHTML = '<span>⏳</span><span class="text-sm md:text-base">กำลังดำเนินการ...</span>';
+                submitButton.classList.add('opacity-75', 'cursor-not-allowed');
+
                 const currentYear = new Date().getFullYear();
                 const thaiYear = currentYear + 543;
                 const counterDocId = `certificateNumber_${currentYear}`;
-                
-                const counterDoc = await db.collection('counters').doc(counterDocId).get();
-                let startNumber = 1;
-                
-                if (counterDoc.exists) {
-                    startNumber = counterDoc.data().current + 1;
-                }
-
-                const endNumber = startNumber + quantity - 1;
-                const certificateNumber = quantity === 1 
-                    ? `${startNumber}/${thaiYear}`
-                    : `${startNumber}-${endNumber}/${thaiYear}`;
-                
                 const timestamp = new Date();
-
-                // Save to Firestore
-                await db.collection('certificate').add({
-                    certificateNumber,
-                    title,
-                    signer,
-                    quantity,
-                    requestor,
-                    notes,
-                    timestamp,
-                    startNumber,
-                    endNumber,
-                    year: currentYear
+                
+                // Use Firestore Transaction to prevent race condition
+                const result = await db.runTransaction(async (transaction) => {
+                    const counterRef = db.collection('counters').doc(counterDocId);
+                    const counterDoc = await transaction.get(counterRef);
+                    
+                    let startNumber = 1;
+                    if (counterDoc.exists) {
+                        startNumber = counterDoc.data().current + 1;
+                    }
+                    
+                    const endNumber = startNumber + quantity - 1;
+                    const certificateNumber = quantity === 1 
+                        ? `${startNumber}/${thaiYear}`
+                        : `${startNumber}-${endNumber}/${thaiYear}`;
+                    
+                    // Update counter within transaction
+                    transaction.set(counterRef, {
+                        current: endNumber,
+                        year: currentYear
+                    });
+                    
+                    // Add certificate within transaction
+                    const certRef = db.collection('certificate').doc();
+                    transaction.set(certRef, {
+                        certificateNumber,
+                        title,
+                        signer,
+                        quantity,
+                        requestor,
+                        notes,
+                        timestamp,
+                        startNumber,
+                        endNumber,
+                        year: currentYear
+                    });
+                    
+                    return { certificateNumber, startNumber, endNumber };
                 });
-
-                // Update counter
-                await db.collection('counters').doc(counterDocId).set({
-                    current: endNumber,
-                    year: currentYear
-                });
-
-                showCertificatePopup(certificateNumber, { 
+                
+                showCertificatePopup(result.certificateNumber, { 
                     title, 
                     signer, 
                     quantity, 
@@ -644,6 +666,12 @@
 
             } catch (error) {
                 alert('เกิดข้อผิดพลาด: ' + error.message);
+            } finally {
+                // Reset submitting state
+                isSubmitting = false;
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalButtonHTML;
+                submitButton.classList.remove('opacity-75', 'cursor-not-allowed');
             }
         });
 
@@ -727,6 +755,4 @@
         initializePage();
     </script>
 </body>
-
 </html>
-
