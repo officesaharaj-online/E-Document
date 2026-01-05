@@ -565,9 +565,29 @@
         // Initialize autocomplete for requestor field
         autocomplete(document.getElementById("requestor"), staffNames);
 
+        // Submission flag to prevent double submission
+        let isSubmitting = false;
+
         // Form submission
         commandForm.addEventListener('submit', async function(e) {
             e.preventDefault();
+            
+            // Prevent double submission
+            if (isSubmitting) {
+                return;
+            }
+            
+            isSubmitting = true;
+            
+            // Get submit button and disable it
+            const submitButton = this.querySelector('button[type="submit"]');
+            const originalButtonHTML = submitButton.innerHTML;
+            submitButton.disabled = true;
+            submitButton.classList.add('opacity-50', 'cursor-not-allowed');
+            submitButton.innerHTML = `
+                <span>⏳</span>
+                <span class="text-sm md:text-base">กำลังดำเนินการ...</span>
+            `;
             
             const title = document.getElementById('title').value;
             const requestor = document.getElementById('requestor').value;
@@ -576,34 +596,50 @@
             try {
                 const currentYear = new Date().getFullYear();
                 const counterDocId = `commandNumber_${currentYear}`;
+                const counterRef = db.collection('counters').doc(counterDocId);
                 
-                const counterDoc = await db.collection('counters').doc(counterDocId).get();
-                let nextNumber = 1;
-                
-                if (counterDoc.exists) {
-                    nextNumber = counterDoc.data().current + 1;
-                }
-
-                const thaiYear = currentYear + 543; // Convert to Buddhist Era
-                const commandNumber = `${nextNumber}/${thaiYear}`;
-                const timestamp = new Date();
-
-                await db.collection('command').add({
-                    commandNumber,
-                    title,
-                    requestor,
-                    notes,
-                    timestamp,
-                    number: nextNumber,
-                    year: currentYear
+                // Use transaction to prevent race condition
+                const result = await db.runTransaction(async (transaction) => {
+                    const counterDoc = await transaction.get(counterRef);
+                    
+                    let nextNumber = 1;
+                    if (counterDoc.exists) {
+                        nextNumber = counterDoc.data().current + 1;
+                    }
+                    
+                    const thaiYear = currentYear + 543;
+                    const commandNumber = `คส 04305.037/${nextNumber}/${thaiYear}`;
+                    const timestamp = new Date();
+                    
+                    const commandData = {
+                        commandNumber,
+                        title,
+                        requestor,
+                        notes,
+                        timestamp,
+                        number: nextNumber,
+                        year: currentYear
+                    };
+                    
+                    // Add command document
+                    const commandRef = db.collection('command').doc();
+                    transaction.set(commandRef, commandData);
+                    
+                    // Update counter
+                    transaction.set(counterRef, {
+                        current: nextNumber,
+                        year: currentYear
+                    });
+                    
+                    return { commandNumber, commandData };
                 });
 
-                await db.collection('counters').doc(counterDocId).set({
-                    current: nextNumber,
-                    year: currentYear
+                showCommandPopup(result.commandNumber, {
+                    title: result.commandData.title,
+                    requestor: result.commandData.requestor,
+                    notes: result.commandData.notes,
+                    timestamp: result.commandData.timestamp
                 });
-
-                showCommandPopup(commandNumber, { title, requestor, notes, timestamp });
                 
                 commandForm.reset();
                 
@@ -611,7 +647,14 @@
                 loadCommands(currentYear);
 
             } catch (error) {
+                console.error('Error:', error);
                 alert('เกิดข้อผิดพลาด: ' + error.message);
+            } finally {
+                // Re-enable submit button
+                isSubmitting = false;
+                submitButton.disabled = false;
+                submitButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                submitButton.innerHTML = originalButtonHTML;
             }
         });
 
@@ -692,6 +735,4 @@
         initializePage();
     </script>
 </body>
-
 </html>
-
