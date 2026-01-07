@@ -322,7 +322,6 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // *** CHANGED: Collection name from "documents" to "document_v" ***
         const COLLECTION_NAME = 'document_v';
         const COUNTERS_COLLECTION = 'counters_v';
 
@@ -330,7 +329,7 @@
         let availableYears = [];
         let currentSelectedYear = null;
         let requesterNames = new Set();
-        let isSubmitting = false; // Flag to prevent duplicate submissions
+        let isSubmitting = false;
 
         // DOM Elements
         const fromSelect = document.getElementById('fromSelect');
@@ -398,21 +397,24 @@
             requesterSuggestions.classList.add('hidden');
         };
 
-        // Form submission
+        // *** IMPROVED: Better duplicate prevention with retry mechanism ***
         documentForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            // Prevent duplicate submission
             if (isSubmitting) {
+                console.log('Already submitting, ignoring duplicate submission');
                 return;
             }
             
-            // Get submit button
             const submitButton = this.querySelector('button[type="submit"]');
             const originalButtonHTML = submitButton.innerHTML;
             
+            // Maximum retry attempts
+            const MAX_RETRIES = 3;
+            let retryCount = 0;
+            let success = false;
+            
             try {
-                // Set submitting state
                 isSubmitting = true;
                 submitButton.disabled = true;
                 submitButton.classList.add('opacity-70', 'cursor-not-allowed');
@@ -421,69 +423,145 @@
                     <span class="text-sm md:text-base">กำลังดำเนินการ...</span>
                 `;
                 
-                const title = document.getElementById('title').value;
-                const from = fromSelect.value === 'other' ? fromOther.value : fromSelect.value;
-                const to = toSelect.value === 'other' ? toOther.value : toSelect.value;
-                const requester = document.getElementById('requester').value;
-                const notes = document.getElementById('notes').value;
+                // Get form data
+                const title = document.getElementById('title').value.trim();
+                const from = fromSelect.value === 'other' ? fromOther.value.trim() : fromSelect.value;
+                const to = toSelect.value === 'other' ? toOther.value.trim() : toSelect.value;
+                const requester = document.getElementById('requester').value.trim();
+                const notes = document.getElementById('notes').value.trim();
 
-                const currentYear = new Date().getFullYear();
-                const counterDocId = `documentNumber_${currentYear}`;
-                const counterRef = db.collection(COUNTERS_COLLECTION).doc(counterDocId);
-                const timestamp = new Date();
-
-                // Use Firebase Transaction to prevent duplicate numbers
-                const nextNumber = await db.runTransaction(async (transaction) => {
-                    const counterDoc = await transaction.get(counterRef);
-                    let newNumber = 1;
-                    
-                    if (counterDoc.exists) {
-                        newNumber = counterDoc.data().current + 1;
-                    }
-                    
-                    // Update counter in transaction
-                    transaction.set(counterRef, {
-                        current: newNumber,
-                        year: currentYear
-                    });
-                    
-                    return newNumber;
-                });
-
-                const documentNumber = `ศธ 04305.037/ว${nextNumber}`;
-
-                // Save document after getting the number
-                await db.collection(COLLECTION_NAME).add({
-                    documentNumber,
-                    title,
-                    from,
-                    to,
-                    requester,
-                    notes,
-                    timestamp,
-                    number: nextNumber,
-                    year: currentYear
-                });
-
-                // Add new requester to the autocomplete list
-                if (requester) {
-                    requesterNames.add(requester);
+                // Validate inputs
+                if (!title || !from || !to || !requester) {
+                    throw new Error('กรุณากรอกข้อมูลให้ครบถ้วน');
                 }
 
-                showDocumentPopup(documentNumber, { title, from, to, requester, notes, timestamp });
+                const currentYear = new Date().getFullYear();
+                const timestamp = firebase.firestore.Timestamp.now();
+
+                // *** IMPROVED: Retry mechanism for transaction conflicts ***
+                while (retryCount < MAX_RETRIES && !success) {
+                    try {
+                        // Use Firestore transaction to ensure atomicity
+                        const result = await db.runTransaction(async (transaction) => {
+                            const counterDocId = `documentNumber_${currentYear}`;
+                            const counterRef = db.collection(COUNTERS_COLLECTION).doc(counterDocId);
+                            
+                            // Read counter
+                            const counterDoc = await transaction.get(counterRef);
+                            let newNumber = 1;
+                            
+                            if (counterDoc.exists) {
+                                newNumber = counterDoc.data().current + 1;
+                            }
+                            
+                            const documentNumber = `ศธ 04305.037/ว${newNumber}`;
+                            
+                            // Create new document reference
+                            const newDocRef = db.collection(COLLECTION_NAME).doc();
+                            
+                            // *** IMPROVED: Check for duplicate document number before writing ***
+                            const duplicateCheck = await db.collection(COLLECTION_NAME)
+                                .where('documentNumber', '==', documentNumber)
+                                .limit(1)
+                                .get();
+                            
+                            if (!duplicateCheck.empty) {
+                                throw new Error('DUPLICATE_NUMBER_DETECTED');
+                            }
+                            
+                            // Write both counter and document in transaction
+                            transaction.set(counterRef, {
+                                current: newNumber,
+                                year: currentYear,
+                                lastUpdated: timestamp
+                            });
+                            
+                            transaction.set(newDocRef, {
+                                documentNumber,
+                                title,
+                                from,
+                                to,
+                                requester,
+                                notes,
+                                timestamp,
+                                number: newNumber,
+                                year: currentYear,
+                                createdAt: timestamp,
+                                status: 'active'
+                            });
+                            
+                            return {
+                                documentNumber,
+                                number: newNumber,
+                                docId: newDocRef.id
+                            };
+                        });
+
+                        // Transaction succeeded
+                        success = true;
+                        
+                        // Add requester to autocomplete
+                        if (requester) {
+                            requesterNames.add(requester);
+                        }
+
+                        // Show success popup
+                        showDocumentPopup(result.documentNumber, {
+                            title,
+                            from,
+                            to,
+                            requester,
+                            notes,
+                            timestamp: timestamp.toDate()
+                        });
+                        
+                        // Reset form
+                        documentForm.reset();
+                        fromOther.classList.add('hidden');
+                        toOther.classList.add('hidden');
+                        
+                        // Reload data
+                        await loadAvailableYears();
+                        
+                        console.log('Document created successfully:', result.documentNumber);
+                        
+                    } catch (transactionError) {
+                        retryCount++;
+                        
+                        if (transactionError.message === 'DUPLICATE_NUMBER_DETECTED') {
+                            console.warn(`Duplicate number detected on attempt ${retryCount}, retrying...`);
+                            // Wait a bit before retry
+                            await new Promise(resolve => setTimeout(resolve, 100 * retryCount));
+                        } else if (transactionError.code === 'aborted' || transactionError.code === 'failed-precondition') {
+                            console.warn(`Transaction conflict on attempt ${retryCount}, retrying...`);
+                            await new Promise(resolve => setTimeout(resolve, 100 * retryCount));
+                        } else {
+                            // Other errors, don't retry
+                            throw transactionError;
+                        }
+                    }
+                }
                 
-                documentForm.reset();
-                fromOther.classList.add('hidden');
-                toOther.classList.add('hidden');
-                
-                // Reload documents and update year filter
-                await loadAvailableYears();
+                if (!success) {
+                    throw new Error('ไม่สามารถสร้างเลขหนังสือได้หลังจากพยายาม ' + MAX_RETRIES + ' ครั้ง กรุณาลองใหม่อีกครั้ง');
+                }
 
             } catch (error) {
-                console.error('Error:', error);
-                alert('เกิดข้อผิดพลาด: ' + error.message);
+                console.error('Error creating document:', error);
+                let errorMessage = 'เกิดข้อผิดพลาด: ';
+                
+                if (error.message.includes('ไม่สามารถสร้างเลขหนังสือได้')) {
+                    errorMessage += error.message;
+                } else if (error.code === 'permission-denied') {
+                    errorMessage += 'ไม่มีสิทธิ์ในการสร้างเอกสาร กรุณาติดต่อผู้ดูแลระบบ';
+                } else if (error.code === 'unavailable') {
+                    errorMessage += 'เชื่อมต่อกับเซิร์ฟเวอร์ไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ตและลองใหม่';
+                } else {
+                    errorMessage += error.message || 'กรุณาลองใหม่อีกครั้ง';
+                }
+                
+                alert(errorMessage);
             } finally {
-                // Reset submitting state
                 isSubmitting = false;
                 submitButton.disabled = false;
                 submitButton.classList.remove('opacity-70', 'cursor-not-allowed');
@@ -500,7 +578,13 @@
                 <div><strong>ถึง:</strong> ${details.to}</div>
                 <div><strong>ผู้ขอเลข:</strong> ${details.requester}</div>
                 ${details.notes ? `<div><strong>หมายเหตุ:</strong> ${details.notes}</div>` : ''}
-                <div><strong>วันที่:</strong> ${details.timestamp.toLocaleDateString('th-TH')}</div>
+                <div><strong>วันที่:</strong> ${details.timestamp.toLocaleDateString('th-TH', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                })}</div>
             `;
             documentPopup.classList.remove('hidden');
             documentPopup.classList.add('flex');
@@ -517,13 +601,11 @@
             try {
                 let query = db.collection(COLLECTION_NAME);
                 
-                // If a year is selected, filter by that year
                 if (selectedYear) {
                     query = query.where('year', '==', parseInt(selectedYear));
                 }
                 
-                // Order by timestamp descending
-                query = query.orderBy('timestamp', 'desc');
+                query = query.orderBy('timestamp', 'desc').limit(100);
                 
                 const snapshot = await query.get();
                 documents = [];
@@ -536,19 +618,17 @@
             } catch (error) {
                 console.error('Error loading documents:', error);
                 
-                // If it's an index error, try without ordering
                 if (error.code === 'failed-precondition') {
                     console.log('Trying to load without year filter...');
                     try {
                         const snapshot = await db.collection(COLLECTION_NAME)
                             .orderBy('timestamp', 'desc')
-                            .limit(50)
+                            .limit(100)
                             .get();
                         
                         documents = [];
                         snapshot.forEach(doc => {
                             const data = { id: doc.id, ...doc.data() };
-                            // Filter by year in memory if needed
                             if (!selectedYear || data.year === parseInt(selectedYear)) {
                                 documents.push(data);
                             }
@@ -578,7 +658,6 @@
                     if (data.year) {
                         years.add(data.year);
                     }
-                    // Collect requester names for autocomplete
                     if (data.requester) {
                         requesterNames.add(data.requester);
                     }
@@ -586,17 +665,14 @@
 
                 availableYears = Array.from(years).sort((a, b) => b - a);
                 
-                // Update year filter dropdown
                 const currentYear = new Date().getFullYear();
                 yearFilter.innerHTML = '';
                 
-                // Add "All Years" option
                 const allOption = document.createElement('option');
                 allOption.value = '';
                 allOption.textContent = 'ทุกปี';
                 yearFilter.appendChild(allOption);
                 
-                // Add current year first if it exists in data or as default
                 if (availableYears.length === 0 || !availableYears.includes(currentYear)) {
                     const option = document.createElement('option');
                     option.value = currentYear;
@@ -618,7 +694,6 @@
                     yearFilter.appendChild(option);
                 });
 
-                // Load documents for selected year
                 if (availableYears.length > 0 && !currentSelectedYear) {
                     currentSelectedYear = availableYears[0];
                     yearFilter.value = currentSelectedYear;
@@ -628,8 +703,6 @@
             } catch (error) {
                 console.error('Error loading years:', error);
                 yearFilter.innerHTML = '<option value="">เกิดข้อผิดพลาด</option>';
-                
-                // Try to load documents anyway
                 loadDocuments(null);
             }
         }
@@ -653,16 +726,19 @@
                 return;
             }
 
-            historyTable.innerHTML = documents.map(doc => `
+            historyTable.innerHTML = documents.map(doc => {
+                const dateObj = doc.timestamp?.toDate ? doc.timestamp.toDate() : new Date(doc.timestamp);
+                return `
                 <tr class="table-row-hover transition-all duration-200">
-                    <td class="border-b border-blue-100 px-3 md:px-6 py-3 md:py-4 font-medium text-blue-600 text-xs md:text-sm">${doc.documentNumber}</td>
-                    <td class="border-b border-blue-100 px-3 md:px-6 py-3 md:py-4 text-xs md:text-sm">${doc.title}</td>
-                    <td class="border-b border-blue-100 px-3 md:px-6 py-3 md:py-4 text-gray-600 text-xs md:text-sm hidden md:table-cell">${doc.from}</td>
-                    <td class="border-b border-blue-100 px-3 md:px-6 py-3 md:py-4 text-gray-600 text-xs md:text-sm hidden md:table-cell">${doc.to}</td>
-                    <td class="border-b border-blue-100 px-3 md:px-6 py-3 md:py-4 text-xs md:text-sm">${doc.requester}</td>
-                    <td class="border-b border-blue-100 px-3 md:px-6 py-3 md:py-4 text-gray-500 text-xs md:text-sm">${doc.timestamp.toDate().toLocaleDateString('th-TH')}</td>
+                    <td class="border-b border-blue-100 px-3 md:px-6 py-3 md:py-4 font-medium text-blue-600 text-xs md:text-sm">${doc.documentNumber || 'N/A'}</td>
+                    <td class="border-b border-blue-100 px-3 md:px-6 py-3 md:py-4 text-xs md:text-sm">${doc.title || 'N/A'}</td>
+                    <td class="border-b border-blue-100 px-3 md:px-6 py-3 md:py-4 text-gray-600 text-xs md:text-sm hidden md:table-cell">${doc.from || 'N/A'}</td>
+                    <td class="border-b border-blue-100 px-3 md:px-6 py-3 md:py-4 text-gray-600 text-xs md:text-sm hidden md:table-cell">${doc.to || 'N/A'}</td>
+                    <td class="border-b border-blue-100 px-3 md:px-6 py-3 md:py-4 text-xs md:text-sm">${doc.requester || 'N/A'}</td>
+                    <td class="border-b border-blue-100 px-3 md:px-6 py-3 md:py-4 text-gray-500 text-xs md:text-sm">${dateObj.toLocaleDateString('th-TH')}</td>
                 </tr>
-            `).join('');
+            `;
+            }).join('');
         }
 
         // Load documents on page load
