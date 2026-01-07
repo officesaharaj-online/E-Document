@@ -104,20 +104,26 @@
             .table-container {
                 -webkit-overflow-scrolling: touch;
                 scrollbar-width: thin;
+                scrollbar-color: #9ca3af #f3f4f6;
             }
             
             .table-container::-webkit-scrollbar {
-                height: 4px;
+                height: 8px;
+                width: 8px;
             }
             
             .table-container::-webkit-scrollbar-track {
-                background: #f1f1f1;
-                border-radius: 2px;
+                background: #f3f4f6;
+                border-radius: 4px;
             }
             
             .table-container::-webkit-scrollbar-thumb {
-                background: #c1c1c1;
-                border-radius: 2px;
+                background: #9ca3af;
+                border-radius: 4px;
+            }
+            
+            .table-container::-webkit-scrollbar-thumb:hover {
+                background: #6b7280;
             }
         }
     </style>
@@ -206,10 +212,10 @@
                 </div>
             </div>
             
-            <div class="overflow-x-auto rounded-xl border border-gray-200 table-container">
+            <div class="overflow-x-auto overflow-y-auto rounded-xl border border-gray-200 table-container" style="max-height: 500px;">
                 <table class="w-full border-collapse bg-white/50 min-w-[600px]">
-                    <thead>
-                        <tr class="bg-gradient-to-r from-gray-50 to-gray-100">
+                    <thead class="sticky top-0 z-10 bg-gradient-to-r from-gray-50 to-gray-100">
+                        <tr>
                             <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">เลขคำสั่ง</th>
                             <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">ชื่อเรื่อง</th>
                             <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">ผู้ขอเลข</th>
@@ -260,7 +266,7 @@
                             <div class="w-6 h-6 md:w-8 md:h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
                                 <span class="text-xs md:text-sm">📱</span>
                             </div>
-                            <span class="text-gray-300 text-sm md:text-base">0970283841(ครูวชิราพร)</span>
+                            <span class="text-gray-300 text-sm md:text-base">0970283841 (ครูวชิราพร)</span>
                         </div>
                         <div class="flex items-center space-x-3">
                             <div class="w-6 h-6 md:w-8 md:h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
@@ -273,7 +279,7 @@
             </div>
             <div class="border-t border-gray-700 mt-6 md:mt-8 pt-6 md:pt-8 text-center">
                 <p class="text-gray-400 text-xs md:text-sm">
-                    © 2024 โรงเรียนสหราษฎร์รังสฤษดิ์ - ระบบขอเลขคำสั่ง
+                    © 2026 โรงเรียนสหราษฎร์รังสฤษดิ์ - ระบบขอเลขคำสั่ง
                 </p>
             </div>
         </div>
@@ -374,7 +380,7 @@
             "นายวิชญ์วิสิฐ กฤษฎิ์พิรเมศ",
             "นางสาวอัมพร รักดี",
             "นางสาวภควดี วรรณวงศ์",
-            "นางขวัญนภา อรรังข์",
+            "นางขวัญนภา อรรคสังข์",
             "นางทิติภา แสนมะฮุง",
             "นายยุทธการ แก้วอินทร์",
             "นางสาวปราณีต พรรณวงศ์",
@@ -608,7 +614,7 @@
                     }
                     
                     const thaiYear = currentYear + 543;
-                    const commandNumber = `${nextNumber}/${thaiYear}`;
+                    const commandNumber = `คส 04305.037/${nextNumber}/${thaiYear}`;
                     const timestamp = new Date();
                     
                     const commandData = {
@@ -736,4 +742,3 @@
     </script>
 </body>
 </html>
-
