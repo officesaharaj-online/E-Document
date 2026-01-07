@@ -87,6 +87,41 @@
             background-color: #fed7aa !important;
         }
         
+        /* Scrollable Table Container */
+        .table-scroll-container {
+            max-height: 500px;
+            overflow-y: auto;
+            border-radius: 0.75rem;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .table-scroll-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .table-scroll-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        
+        .table-scroll-container::-webkit-scrollbar-thumb {
+            background: #f97316;
+            border-radius: 4px;
+        }
+        
+        .table-scroll-container::-webkit-scrollbar-thumb:hover {
+            background: #ea580c;
+        }
+        
+        /* Sticky Table Header */
+        .sticky-header thead {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: linear-gradient(to right, #fff7ed, #fef3c7);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
         @media (max-width: 768px) {
             .mobile-text-sm { font-size: 0.875rem; }
             .mobile-text-xs { font-size: 0.75rem; }
@@ -118,6 +153,10 @@
             .table-container::-webkit-scrollbar-thumb {
                 background: #c1c1c1;
                 border-radius: 2px;
+            }
+            
+            .table-scroll-container {
+                max-height: 400px;
             }
         }
     </style>
@@ -230,31 +269,34 @@
                 </div>
             </div>
             
-            <div class="overflow-x-auto rounded-xl border border-gray-200 table-container">
-                <table class="w-full border-collapse bg-white/50 min-w-[600px]">
-                    <thead>
-                        <tr class="bg-gradient-to-r from-orange-50 to-amber-50">
-                            <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">เลขบันทึกข้อความ</th>
-                            <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">ชื่อเรื่อง</th>
-                            <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm hidden md:table-cell">จาก</th>
-                            <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm hidden md:table-cell">ถึง</th>
-                            <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">ผู้ขอเลข</th>
-                            <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">วันที่</th>
-                        </tr>
-                    </thead>
-                    <tbody id="historyTable">
-                        <tr>
-                            <td colspan="6" class="border-b border-gray-100 px-3 md:px-6 py-6 md:py-8 text-center text-gray-500">
-                                <div class="flex items-center justify-center space-x-2">
-                                    <div class="w-3 h-3 md:w-4 md:h-4 bg-orange-500 rounded-full animate-bounce"></div>
-                                    <div class="w-3 h-3 md:w-4 md:h-4 bg-amber-500 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
-                                    <div class="w-3 h-3 md:w-4 md:h-4 bg-orange-600 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
-                                    <span class="ml-3 text-sm">กำลังโหลดข้อมูล...</span>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+            <!-- Scrollable Table Container -->
+            <div class="table-scroll-container">
+                <div class="overflow-x-auto table-container">
+                    <table class="w-full border-collapse bg-white/50 min-w-[600px] sticky-header">
+                        <thead>
+                            <tr class="bg-gradient-to-r from-orange-50 to-amber-50">
+                                <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">เลขบันทึกข้อความ</th>
+                                <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">ชื่อเรื่อง</th>
+                                <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm hidden md:table-cell">จาก</th>
+                                <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm hidden md:table-cell">ถึง</th>
+                                <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">ผู้ขอเลข</th>
+                                <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">วันที่</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTable">
+                            <tr>
+                                <td colspan="6" class="border-b border-gray-100 px-3 md:px-6 py-6 md:py-8 text-center text-gray-500">
+                                    <div class="flex items-center justify-center space-x-2">
+                                        <div class="w-3 h-3 md:w-4 md:h-4 bg-orange-500 rounded-full animate-bounce"></div>
+                                        <div class="w-3 h-3 md:w-4 md:h-4 bg-amber-500 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                                        <div class="w-3 h-3 md:w-4 md:h-4 bg-orange-600 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                                        <span class="ml-3 text-sm">กำลังโหลดข้อมูล...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -286,7 +328,7 @@
                             <div class="w-6 h-6 md:w-8 md:h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
                                 <span class="text-xs md:text-sm">📱</span>
                             </div>
-                            <span class="text-orange-100 text-sm md:text-base">0970283841(ครูวชิราพร)</span>
+                            <span class="text-orange-100 text-sm md:text-base">0970283841 (ครูวชิราพร)</span>
                         </div>
                         <div class="flex items-center space-x-3">
                             <div class="w-6 h-6 md:w-8 md:h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
@@ -299,7 +341,7 @@
             </div>
             <div class="border-t border-orange-700 mt-6 md:mt-8 pt-6 md:pt-8 text-center">
                 <p class="text-orange-200 text-xs md:text-sm">
-                    © 2024 โรงเรียนสหราษฎร์รังสฤษดิ์ - ระบบขอเลขบันทึกข้อความ
+                    © 2026 โรงเรียนสหราษฎร์รังสฤษดิ์ - ระบบขอเลขบันทึกข้อความ
                 </p>
             </div>
         </div>
@@ -775,4 +817,3 @@
     </script>
 </body>
 </html>
-
