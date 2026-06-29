@@ -190,19 +190,32 @@
 
         <!-- History Section -->
         <div class="glass-effect rounded-xl md:rounded-2xl shadow-2xl p-4 md:p-8 card-hover border border-blue-100">
-            <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-4 md:mb-6">
-                <div class="flex items-center space-x-3 md:space-x-4">
-                    <div class="w-6 h-6 md:w-8 md:h-8 bg-gradient-to-r from-blue-500 to-blue-700 rounded-lg flex items-center justify-center">
-                        <span class="text-white text-xs md:text-sm">📊</span>
+            <div class="flex flex-col gap-3 mb-4 md:mb-6">
+                <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+                    <div class="flex items-center space-x-3 md:space-x-4">
+                        <div class="w-6 h-6 md:w-8 md:h-8 bg-gradient-to-r from-blue-500 to-blue-700 rounded-lg flex items-center justify-center">
+                            <span class="text-white text-xs md:text-sm">📊</span>
+                        </div>
+                        <h2 class="text-lg md:text-2xl font-semibold gradient-text">ประวัติการขอเลขหนังสือเวียน</h2>
                     </div>
-                    <h2 class="text-lg md:text-2xl font-semibold gradient-text">ประวัติการขอเลขหนังสือเวียน</h2>
+
+                    <div class="flex items-center space-x-2">
+                        <label class="text-sm font-medium text-gray-700">ปี:</label>
+                        <select id="yearFilter" class="px-4 py-2 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm bg-white min-h-[44px] cursor-pointer">
+                            <option value="">กำลังโหลด...</option>
+                        </select>
+                    </div>
                 </div>
-                
-                <div class="flex items-center space-x-2">
-                    <label class="text-sm font-medium text-gray-700">ปี:</label>
-                    <select id="yearFilter" class="px-4 py-2 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm bg-white min-h-[44px] cursor-pointer">
-                        <option value="">กำลังโหลด...</option>
-                    </select>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+                        </svg>
+                    </div>
+                    <input type="text" id="searchInput"
+                           class="w-full pl-10 pr-4 py-2.5 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white placeholder-gray-400"
+                           placeholder="ค้นหาด้วย เลขหนังสือ / ชื่อเรื่อง / ผู้ขอเลข..."
+                           oninput="searchHistory(this.value)">
                 </div>
             </div>
             
@@ -330,6 +343,7 @@
         let currentSelectedYear = null;
         let requesterNames = new Set();
         let isSubmitting = false;
+        let searchQuery = '';
 
         // DOM Elements
         const fromSelect = document.getElementById('fromSelect');
@@ -713,20 +727,33 @@
             loadDocuments(currentSelectedYear);
         });
 
+        // Search history
+        function searchHistory(value) {
+            searchQuery = value.trim().toLowerCase();
+            displayDocuments();
+        }
+
         // Display documents in main table
         function displayDocuments() {
-            if (documents.length === 0) {
+            let data = documents;
+            if (searchQuery) {
+                data = documents.filter(doc =>
+                    (doc.documentNumber || '').toLowerCase().includes(searchQuery) ||
+                    (doc.title || '').toLowerCase().includes(searchQuery) ||
+                    (doc.requester || '').toLowerCase().includes(searchQuery)
+                );
+            }
+
+            if (data.length === 0) {
                 const yearText = currentSelectedYear ? `ปี พ.ศ. ${currentSelectedYear + 543}` : 'ระบบ';
-                historyTable.innerHTML = `<tr><td colspan="6" class="border-b border-blue-100 px-6 py-8 text-center text-gray-500">
-                    <div class="flex flex-col items-center space-y-2">
-                        <span class="text-4xl">📋</span>
-                        <span>ยังไม่มีข้อมูลใน${yearText}</span>
-                    </div>
-                </td></tr>`;
+                const msg = searchQuery
+                    ? `ไม่พบข้อมูลที่ตรงกับ "<strong>${searchQuery}</strong>"`
+                    : `<div class="flex flex-col items-center space-y-2"><span class="text-4xl">📋</span><span>ยังไม่มีข้อมูลใน${yearText}</span></div>`;
+                historyTable.innerHTML = `<tr><td colspan="6" class="border-b border-blue-100 px-6 py-8 text-center text-gray-500">${msg}</td></tr>`;
                 return;
             }
 
-            historyTable.innerHTML = documents.map(doc => {
+            historyTable.innerHTML = data.map(doc => {
                 const dateObj = doc.timestamp?.toDate ? doc.timestamp.toDate() : new Date(doc.timestamp);
                 return `
                 <tr class="table-row-hover transition-all duration-200">

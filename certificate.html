@@ -86,8 +86,33 @@
         .autocomplete-active {
             background-color: #e5e7eb !important;
         }
-        
+
+        .table-scroll-container {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .table-scroll-container::-webkit-scrollbar {
+            width: 6px;
+            height: 4px;
+        }
+
+        .table-scroll-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+
+        .table-scroll-container::-webkit-scrollbar-thumb {
+            background: #10b981;
+            border-radius: 3px;
+        }
+
+        .table-scroll-container::-webkit-scrollbar-thumb:hover {
+            background: #059669;
+        }
+
         @media (max-width: 768px) {
+            .table-scroll-container { max-height: 400px; }
             .mobile-text-sm { font-size: 0.875rem; }
             .mobile-text-xs { font-size: 0.75rem; }
             .mobile-px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
@@ -204,24 +229,37 @@
 
         <!-- History Section -->
         <div class="glass-effect rounded-xl md:rounded-2xl shadow-2xl p-4 md:p-8 card-hover border border-white/20">
-            <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4 md:mb-6 space-y-3 md:space-y-0">
-                <div class="flex items-center space-x-3 md:space-x-4">
-                    <div class="w-6 h-6 md:w-8 md:h-8 bg-gradient-to-r from-green-600 to-emerald-700 rounded-lg flex items-center justify-center">
-                        <span class="text-white text-xs md:text-sm">📊</span>
+            <div class="flex flex-col gap-3 mb-4 md:mb-6">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div class="flex items-center space-x-3 md:space-x-4">
+                        <div class="w-6 h-6 md:w-8 md:h-8 bg-gradient-to-r from-green-600 to-emerald-700 rounded-lg flex items-center justify-center">
+                            <span class="text-white text-xs md:text-sm">📊</span>
+                        </div>
+                        <h2 class="text-lg md:text-2xl font-semibold gradient-text">ประวัติการขอเลขเกียรติบัตร</h2>
                     </div>
-                    <h2 class="text-lg md:text-2xl font-semibold gradient-text">ประวัติการขอเลขเกียรติบัตร</h2>
+                    <div class="flex items-center space-x-2">
+                        <label class="text-sm font-medium text-gray-700">ปี:</label>
+                        <select id="yearFilter" class="px-3 md:px-4 py-2 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent bg-white">
+                            <!-- Years will be populated by JavaScript -->
+                        </select>
+                    </div>
                 </div>
-                <div class="flex items-center space-x-2">
-                    <label class="text-sm font-medium text-gray-700">ปี:</label>
-                    <select id="yearFilter" class="px-3 md:px-4 py-2 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent bg-white">
-                        <!-- Years will be populated by JavaScript -->
-                    </select>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+                        </svg>
+                    </div>
+                    <input type="text" id="searchInput"
+                           class="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent bg-white placeholder-gray-400"
+                           placeholder="ค้นหาด้วย เลขเกียรติบัตร / ชื่อเรื่อง / ผู้ลงนาม / ผู้ขอเลข..."
+                           oninput="searchHistory(this.value)">
                 </div>
             </div>
-            
-            <div class="overflow-x-auto rounded-xl border border-gray-200 table-container">
+
+            <div class="table-scroll-container overflow-x-auto rounded-xl border border-gray-200 table-container">
                 <table class="w-full border-collapse bg-white/50 min-w-[700px]">
-                    <thead>
+                    <thead class="sticky top-0 z-10">
                         <tr class="bg-gradient-to-r from-green-50 to-emerald-50">
                             <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">เลขเกียรติบัตร</th>
                             <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">ชื่อเรื่อง</th>
@@ -454,6 +492,7 @@
 
         let certificates = [];
         let currentYear = new Date().getFullYear();
+        let searchQuery = '';
 
         // DOM Elements
         const certificateForm = document.getElementById('certificateForm');
@@ -721,16 +760,35 @@
             }
         }
 
+        // Search history
+        function searchHistory(value) {
+            searchQuery = value.trim().toLowerCase();
+            displayCertificates();
+        }
+
         // Display certificates
         function displayCertificates() {
-            if (certificates.length === 0) {
+            let data = certificates;
+            if (searchQuery) {
+                data = certificates.filter(cert =>
+                    (cert.certificateNumber || '').toLowerCase().includes(searchQuery) ||
+                    (cert.title || '').toLowerCase().includes(searchQuery) ||
+                    (cert.signer || '').toLowerCase().includes(searchQuery) ||
+                    (cert.requestor || '').toLowerCase().includes(searchQuery)
+                );
+            }
+
+            if (data.length === 0) {
                 const selectedYear = parseInt(yearFilter.value);
                 const thaiYear = selectedYear + 543;
-                historyTable.innerHTML = `<tr><td colspan="5" class="border-b border-gray-100 px-6 py-8 text-center text-gray-500">ยังไม่มีข้อมูลสำหรับปี พ.ศ. ${thaiYear}</td></tr>`;
+                const msg = searchQuery
+                    ? `ไม่พบข้อมูลที่ตรงกับ "<strong>${searchQuery}</strong>"`
+                    : `ยังไม่มีข้อมูลสำหรับปี พ.ศ. ${thaiYear}`;
+                historyTable.innerHTML = `<tr><td colspan="5" class="border-b border-gray-100 px-6 py-8 text-center text-gray-500">${msg}</td></tr>`;
                 return;
             }
 
-            historyTable.innerHTML = certificates.map(cert => `
+            historyTable.innerHTML = data.map(cert => `
                 <tr class="table-row-hover transition-all duration-200">
                     <td class="border-b border-gray-100 px-3 md:px-6 py-3 md:py-4 font-medium text-green-700 text-xs md:text-sm">${cert.certificateNumber}</td>
                     <td class="border-b border-gray-100 px-3 md:px-6 py-3 md:py-4 text-xs md:text-sm">${cert.title}</td>
