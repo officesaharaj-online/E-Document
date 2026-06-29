@@ -261,11 +261,11 @@
                 <table class="w-full border-collapse bg-white/50 min-w-[700px]">
                     <thead class="sticky top-0 z-10">
                         <tr class="bg-gradient-to-r from-green-50 to-emerald-50">
-                            <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">เลขเกียรติบัตร</th>
+                            <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm whitespace-nowrap" style="width: 160px;">เลขเกียรติบัตร</th>
                             <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">ชื่อเรื่อง</th>
                             <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">ผู้ลงนาม</th>
                             <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">ผู้ขอเลข</th>
-                            <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm">วันที่</th>
+                            <th class="border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 text-left font-semibold text-gray-700 text-xs md:text-sm whitespace-nowrap">วันที่</th>
                         </tr>
                     </thead>
                     <tbody id="historyTable">
@@ -790,11 +790,11 @@
 
             historyTable.innerHTML = data.map(cert => `
                 <tr class="table-row-hover transition-all duration-200">
-                    <td class="border-b border-gray-100 px-3 md:px-6 py-3 md:py-4 font-medium text-green-700 text-xs md:text-sm">${cert.certificateNumber}</td>
+                    <td class="border-b border-gray-100 px-3 md:px-6 py-3 md:py-4 font-medium text-green-700 text-xs md:text-sm whitespace-nowrap">${cert.certificateNumber}</td>
                     <td class="border-b border-gray-100 px-3 md:px-6 py-3 md:py-4 text-xs md:text-sm">${cert.title}</td>
                     <td class="border-b border-gray-100 px-3 md:px-6 py-3 md:py-4 text-xs md:text-sm">${cert.signer}</td>
                     <td class="border-b border-gray-100 px-3 md:px-6 py-3 md:py-4 text-xs md:text-sm">${cert.requestor}</td>
-                    <td class="border-b border-gray-100 px-3 md:px-6 py-3 md:py-4 text-gray-500 text-xs md:text-sm">${cert.timestamp.toDate().toLocaleDateString('th-TH')}</td>
+                    <td class="border-b border-gray-100 px-3 md:px-6 py-3 md:py-4 text-gray-500 text-xs md:text-sm whitespace-nowrap">${cert.timestamp.toDate().toLocaleDateString('th-TH')}</td>
                 </tr>
             `).join('');
         }
