@@ -1366,19 +1366,59 @@
 
                 if (editingId) {
                     // Update existing record
-                    // อัพเดต timestamp ถ้ามีการแก้ไข (เพื่อให้สามารถปรับลำดับได้)
                     const timestampValue = document.getElementById('docTimestamp').value;
                     if (timestampValue) {
                         formData.timestamp = firebase.firestore.Timestamp.fromDate(new Date(timestampValue));
                     }
-                    
+
                     await db.collection(collectionName).doc(editingId).update(formData);
                     alert('บันทึกข้อมูลสำเร็จ');
                 } else {
-                    // Add new record - เพิ่ม timestamp สำหรับรายการใหม่
-                    formData.timestamp = firebase.firestore.Timestamp.fromDate(new Date());
-                    await db.collection(collectionName).add(formData);
-                    alert('เพิ่มข้อมูลสำเร็จ\n\nหมายเหตุ: หมายเลขเอกสารจะถูกสร้างโดยระบบหน้าบ้าน');
+                    // Add new record with auto-generated document number (same as user pages)
+                    const currentYear = new Date().getFullYear();
+                    const thaiYear = currentYear + 543;
+
+                    const counterMap = {
+                        documents:   { col: 'counters',   docId: `documentNumber_${currentYear}`,   field: 'documentNumber',   fmt: (n) => `ศธ 04305.037/${n}` },
+                        circulars:   { col: 'counters_v', docId: `documentNumber_${currentYear}`,   field: 'documentNumber',   fmt: (n) => `ศธ 04305.037/ว${n}` },
+                        memos:       { col: 'counters',   docId: `memoNumber_${currentYear}`,       field: 'memoNumber',       fmt: (n) => `ศธ 04305.037/${n}` },
+                        command:     { col: 'counters',   docId: `commandNumber_${currentYear}`,    field: 'commandNumber',    fmt: (n) => `${n}/${thaiYear}` },
+                        certificate: { col: 'counters',   docId: `certificateNumber_${currentYear}`,field: 'certificateNumber',fmt: (n, qty) => qty > 1 ? `${n}-${n + qty - 1}/${thaiYear}` : `${n}/${thaiYear}` }
+                    };
+
+                    const cs = counterMap[currentSystem];
+                    if (!cs) throw new Error('ไม่รองรับระบบนี้: ' + currentSystem);
+
+                    const counterRef = db.collection(cs.col).doc(cs.docId);
+
+                    await db.runTransaction(async (transaction) => {
+                        const counterDoc = await transaction.get(counterRef);
+                        let nextNumber = 1;
+                        if (counterDoc.exists) {
+                            nextNumber = counterDoc.data().current + 1;
+                        }
+
+                        let endNumber = nextNumber;
+                        if (currentSystem === 'certificate') {
+                            const qty = formData.quantity || 1;
+                            endNumber = nextNumber + qty - 1;
+                            formData[cs.field] = cs.fmt(nextNumber, qty);
+                            formData.startNumber = nextNumber;
+                            formData.endNumber = endNumber;
+                        } else {
+                            formData[cs.field] = cs.fmt(nextNumber);
+                        }
+
+                        formData.number = nextNumber;
+                        formData.year = currentYear;
+                        formData.timestamp = firebase.firestore.Timestamp.fromDate(new Date());
+
+                        transaction.set(counterRef, { current: endNumber, year: currentYear });
+                        const newDocRef = db.collection(collectionName).doc();
+                        transaction.set(newDocRef, formData);
+                    });
+
+                    alert('เพิ่มข้อมูลสำเร็จ');
                 }
                 
                 closeModal();
