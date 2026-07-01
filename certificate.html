@@ -255,6 +255,7 @@
                            placeholder="ค้นหาด้วย เลขเกียรติบัตร / ชื่อเรื่อง / ผู้ลงนาม / ผู้ขอเลข..."
                            oninput="searchHistory(this.value)">
                 </div>
+                <p class="text-xs text-gray-400 mt-1">* แสดง 40 รายการล่าสุด — กรอกคำค้นหาเพื่อค้นหารายการอื่นๆ</p>
             </div>
 
             <div class="table-scroll-container overflow-x-auto rounded-xl border border-gray-200 table-container">
@@ -493,6 +494,8 @@
         let certificates = [];
         let currentYear = new Date().getFullYear();
         let searchQuery = '';
+        let cachedSearchData = { year: null, data: null };
+        let searchTimeout = null;
 
         // DOM Elements
         const certificateForm = document.getElementById('certificateForm');
@@ -500,27 +503,25 @@
         const historyTable = document.getElementById('historyTable');
         const yearFilter = document.getElementById('yearFilter');
 
-        // Populate year filter
+        // Populate year filter from counters collection (saves reads)
         async function populateYearFilter() {
             try {
-                const snapshot = await db.collection('certificate').get();
+                const countersSnapshot = await db.collection('counters').get();
                 const years = new Set();
-                
-                snapshot.forEach(doc => {
-                    const data = doc.data();
-                    if (data.year) {
-                        years.add(data.year);
-                    }
+
+                countersSnapshot.forEach(doc => {
+                    const match = doc.id.match(/^certificateNumber_(\d+)$/);
+                    if (match) years.add(parseInt(match[1]));
                 });
-                
+
                 years.add(currentYear);
                 const yearArray = Array.from(years).sort((a, b) => b - a);
-                
+
                 yearFilter.innerHTML = yearArray.map(year => {
                     const thaiYear = year + 543;
                     return `<option value="${year}" ${year === currentYear ? 'selected' : ''}>พ.ศ. ${thaiYear}</option>`;
                 }).join('');
-                
+
             } catch (error) {
                 console.error('Error populating year filter:', error);
                 const thaiYear = currentYear + 543;
@@ -530,6 +531,9 @@
 
         // Year filter change event
         yearFilter.addEventListener('change', function() {
+            cachedSearchData = { year: null, data: null };
+            document.getElementById('searchInput').value = '';
+            searchQuery = '';
             loadCertificates(parseInt(this.value));
         });
 
@@ -737,22 +741,20 @@
             certificatePopup.classList.remove('flex');
         });
 
-        // Load certificates
+        // Load certificates (latest 40, client-side year filter to avoid composite index)
         async function loadCertificates(year = currentYear) {
+            cachedSearchData = { year: null, data: null };
             try {
                 const snapshot = await db.collection('certificate')
                     .orderBy('timestamp', 'desc')
+                    .limit(40)
                     .get();
-                
-                certificates = [];
-                
-                snapshot.forEach(doc => {
-                    const data = doc.data();
-                    if (data.year === year) {
-                        certificates.push({ id: doc.id, ...data });
-                    }
-                });
 
+                certificates = [];
+                snapshot.forEach(doc => {
+                    const data = { id: doc.id, ...doc.data() };
+                    if (data.year === year) certificates.push(data);
+                });
                 displayCertificates();
             } catch (error) {
                 console.error('Error loading certificates:', error);
@@ -760,10 +762,75 @@
             }
         }
 
-        // Search history
+        // Search history (debounced; fetches all for year when searching)
         function searchHistory(value) {
             searchQuery = value.trim().toLowerCase();
-            displayCertificates();
+            clearTimeout(searchTimeout);
+            if (!searchQuery) {
+                displayCertificates();
+                return;
+            }
+            searchTimeout = setTimeout(fetchAllAndFilter, 400);
+        }
+
+        async function fetchAllAndFilter() {
+            const yearToSearch = parseInt(yearFilter.value) || currentYear;
+            if (cachedSearchData.year === yearToSearch && cachedSearchData.data !== null) {
+                displayFilteredSearch(cachedSearchData.data);
+                return;
+            }
+            historyTable.innerHTML = `<tr><td colspan="5" class="border-b border-gray-100 px-3 md:px-6 py-6 md:py-8 text-center text-gray-500">
+                <div class="flex items-center justify-center space-x-2">
+                    <div class="w-3 h-3 md:w-4 md:h-4 bg-green-600 rounded-full animate-bounce"></div>
+                    <div class="w-3 h-3 md:w-4 md:h-4 bg-emerald-500 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                    <span class="ml-3 text-sm">กำลังค้นหา...</span>
+                </div>
+            </td></tr>`;
+            try {
+                let snapshot;
+                try {
+                    snapshot = await db.collection('certificate')
+                        .where('year', '==', yearToSearch)
+                        .orderBy('timestamp', 'desc')
+                        .get();
+                } catch (indexError) {
+                    snapshot = await db.collection('certificate')
+                        .orderBy('timestamp', 'desc')
+                        .get();
+                }
+                const allData = [];
+                snapshot.forEach(doc => {
+                    const data = { id: doc.id, ...doc.data() };
+                    if (data.year === yearToSearch) allData.push(data);
+                });
+                cachedSearchData = { year: yearToSearch, data: allData };
+                displayFilteredSearch(allData);
+            } catch (error) {
+                console.error('Search error:', error);
+                historyTable.innerHTML = `<tr><td colspan="5" class="border-b border-gray-100 px-6 py-8 text-center text-red-500">ไม่สามารถค้นหาได้: ${error.message}</td></tr>`;
+            }
+        }
+
+        function displayFilteredSearch(allData) {
+            const filtered = allData.filter(cert =>
+                (cert.certificateNumber || '').toLowerCase().includes(searchQuery) ||
+                (cert.title || '').toLowerCase().includes(searchQuery) ||
+                (cert.signer || '').toLowerCase().includes(searchQuery) ||
+                (cert.requestor || '').toLowerCase().includes(searchQuery)
+            );
+            if (filtered.length === 0) {
+                historyTable.innerHTML = `<tr><td colspan="5" class="border-b border-gray-100 px-6 py-8 text-center text-gray-500">ไม่พบข้อมูลที่ตรงกับ "<strong>${searchQuery}</strong>"</td></tr>`;
+                return;
+            }
+            historyTable.innerHTML = filtered.map(cert => `
+                <tr class="table-row-hover transition-all duration-200">
+                    <td class="border-b border-gray-100 px-3 md:px-6 py-3 md:py-4 font-medium text-green-700 text-xs md:text-sm whitespace-nowrap">${cert.certificateNumber}</td>
+                    <td class="border-b border-gray-100 px-3 md:px-6 py-3 md:py-4 text-xs md:text-sm">${cert.title}</td>
+                    <td class="border-b border-gray-100 px-3 md:px-6 py-3 md:py-4 text-xs md:text-sm">${cert.signer}</td>
+                    <td class="border-b border-gray-100 px-3 md:px-6 py-3 md:py-4 text-xs md:text-sm">${cert.requestor}</td>
+                    <td class="border-b border-gray-100 px-3 md:px-6 py-3 md:py-4 text-gray-500 text-xs md:text-sm whitespace-nowrap">${cert.timestamp.toDate().toLocaleDateString('th-TH')}</td>
+                </tr>
+            `).join('');
         }
 
         // Display certificates
